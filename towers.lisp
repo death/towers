@@ -196,8 +196,9 @@
 (defmethod render ((path path))
   (gl:color 0 0 0.6)
   (gl:with-primitive :line-strip
-    (loop for (x y) in (vertices path) do
-          (gl:vertex x y))))
+    (loop for v across (vertices path) do
+          (with-vec (x y v)
+            (gl:vertex x y)))))
 
 
 ;;;; Towers
@@ -269,6 +270,59 @@
     (draw-circle 1)))
 
 
+;;;; Enemies
+
+(defclass enemy ()
+  ((pos :initarg :pos :accessor pos)
+   (spd :initarg :speed :accessor spd)
+   (path :initarg :path :accessor path)
+   (next-pos-idx :initform 0 :accessor next-pos-idx)))
+
+(defmethod update ((e enemy) tick world)
+  (declare (ignore tick))
+  (let* ((pos (pos e))
+         (vertices (vertices (path e)))
+         (next-pos (aref vertices (next-pos-idx e))))
+    (when (vec=~ pos next-pos (spd e))
+      (incf (next-pos-idx e))
+      (when (= (next-pos-idx e) (length vertices))
+        (enemy-suicide e world)
+        (return-from update))
+      (setf next-pos (aref vertices (next-pos-idx e))))
+    (vec+= pos (vel-vec (spd e) (vec- next-pos pos)))))
+
+(defclass sqrewy (enemy)
+  ((angle :initform 0 :accessor angle)
+   (dir :initform '> :accessor dir)))
+
+(defmethod update :after ((sq sqrewy) tick world)
+  (declare (ignore tick world))
+  (ecase (dir sq)
+    (>
+     (if (> (angle sq) 30)
+         (setf (dir sq) '<)
+         (incf (angle sq) 2)))
+    (<
+     (if (< (angle sq) -30)
+         (setf (dir sq) '>)
+         (decf (angle sq) 2)))))
+
+(defmethod render ((sq sqrewy))
+  (gl:with-pushed-matrix
+    (with-vec (x y (pos sq))
+      (gl:translate x y 0))
+    (gl:rotate (angle sq) 0 0 1)
+    (gl:color 0 0.5 0.5)
+    (gl:with-primitive :line-loop
+      (gl:vertex -2 -2)
+      (gl:vertex 2 -2)
+      (gl:vertex 2 2)
+      (gl:vertex -2 2))))
+
+(defun enemy-suicide (enemy world)
+  (remove-object enemy world))
+
+
 
 (defclass stupid ()
   ((angle :initform 0 :accessor angle)))
@@ -335,10 +389,15 @@
 ;;;; Levels
 
 (defun make-level-1-world ()
-  (let ((world (make-instance 'world)))
+  (let ((world (make-instance 'world))
+        (path (make-instance 'path :vertices #((0.0 . 100.0)
+                                               (0.0 . 0.0)
+                                               (-50.0 . -50.0)))))
     (add-object (make-instance 'blaster-tower :pos (vec 0.0 0.0)) world)
     (add-object (make-instance 'blaster-tower :pos (vec 20.0 20.0)) world)
-    (add-object (make-instance 'path :vertices '((0 100) (0 0) (-50 -50))) world)
+    (add-object (make-instance 'sqrewy :pos (vec 0.0 110.0) :speed 1.0 :path path) world)
+    (add-object (make-instance 'sqrewy :pos (vec 0.0 100.0) :speed 1.0 :path path) world)
+    (add-object path world)
     (add-object (make-instance 'stupid) world)
     (add-object (make-instance 'grid) world)
     world))
