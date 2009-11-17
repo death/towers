@@ -190,6 +190,75 @@
           (gl:vertex x y))))
 
 
+;;;; Towers
+
+(defclass tower ()
+  ((pos :initarg :pos :accessor pos)))
+
+(defgeneric try-fire (tower tick world))
+(defgeneric tower-projectile (tower))
+
+(defclass shooting-tower-mixin ()
+  ((last-shot-tick :initform nil :accessor last-shot-tick)
+   (fire-rate :initarg :fire-rate :accessor fire-rate)))
+
+(defmethod try-fire ((tower shooting-tower-mixin) tick world)
+  (let ((last-shot-tick (last-shot-tick tower)))
+    (when (or (null last-shot-tick)
+              (>= (- tick last-shot-tick) (fire-rate tower)))
+      (add-object (tower-projectile tower) world)
+      (setf (last-shot-tick tower) tick))))
+
+(defclass blaster-tower (tower shooting-tower-mixin)
+  ((angle :initform 0.0 :accessor angle))
+  (:default-initargs :fire-rate 20))
+
+(defmethod update ((tower blaster-tower) tick world)
+  (when (>= (incf (angle tower)) 360.0)
+    (setf (angle tower) 0.0))
+  (try-fire tower tick world))
+
+(defmethod render ((tower blaster-tower))
+  (gl:with-pushed-matrix
+    (with-vec (x y (pos tower))
+      (gl:translate x y 0))
+    (gl:color 0 1 0)
+    (draw-circle 5)
+    (gl:rotate (angle tower) 0 0 1)
+    (draw-circle 3)
+    (gl:with-primitive :line-loop
+      (gl:vertex -1 0)
+      (gl:vertex 1 0)
+      (gl:vertex 1 8)
+      (gl:vertex -1 8))))
+
+(defclass projectile ()
+  ((pos :initarg :pos :accessor pos)
+   (vel :initarg :vel :accessor vel)))
+
+(defmethod update ((proj projectile) tick world)
+  (declare (ignore tick))
+  (vec+= (pos proj) (vel proj))
+  (unless (vec-contains (dim world) (pos proj))
+    (remove-object proj world)))
+
+(defclass blaster-projectile (projectile)
+  ())
+
+(defmethod tower-projectile ((tower blaster-tower))
+  (let ((vel (vel-vec 1.0 (- (angle tower)))))
+    (make-instance 'blaster-projectile
+                   :pos (vec+= (vec* vel 5.0) (pos tower))
+                   :vel vel)))
+
+(defmethod render ((proj blaster-projectile))
+  (gl:with-pushed-matrix
+    (with-vec (x y (pos proj))
+      (gl:translate x y 0))
+    (gl:color 0 1 0)
+    (draw-circle 1)))
+
+
 
 (defclass stupid ()
   ((angle :initform 0 :accessor angle)))
@@ -215,22 +284,32 @@
 ;;;; Game world
 
 (defclass world ()
-  ((objects :initform '() :accessor objects)))
+  ((projectile-objects :initform '() :accessor projectile-objects)
+   (tower-objects :initform '() :accessor tower-objects)
+   (other-objects :initform '() :accessor other-objects)
+   (dim :initform (vec 100.0 100.0) :accessor dim)))
 
 (defun make-world ()
   (make-instance 'world))
 
-;;; Later on we'll have multiple containers, one for each object type.
-;;; This will help in ordering the objects according to their types.
-
 (defun add-object (object world)
-  (push object (objects world)))
+  (typecase object
+    (projectile (push object (projectile-objects world)))
+    (tower (push object (tower-objects world)))
+    (t (push object (other-objects world)))))
+
+(defun remove-object (object world)
+  (typecase object
+    (projectile (alexandria:deletef (projectile-objects world) object :count 1))
+    (tower (alexandria:deletef (tower-objects world) object :count 1))
+    (t (alexandria:deletef (other-objects world) object :count 1))))
 
 (defun map-objects (function world &key order)
   (ecase order
     ((:render :update :hit-test nil)
-     (dolist (object (objects world))
-       (funcall function object)))))
+     (mapc function (other-objects world))
+     (mapc function (tower-objects world))
+     (mapc function (projectile-objects world)))))
 
 (defmethod update ((w world) tick world)
   (declare (ignore world))
@@ -247,6 +326,8 @@
 
 (defun make-level-1-world ()
   (let ((world (make-instance 'world)))
+    (add-object (make-instance 'blaster-tower :pos (vec 0.0 0.0)) world)
+    (add-object (make-instance 'blaster-tower :pos (vec 20.0 20.0)) world)
     (add-object (make-instance 'path :vertices '((0 100) (0 0) (-50 -50))) world)
     (add-object (make-instance 'stupid) world)
     (add-object (make-instance 'grid) world)
@@ -286,7 +367,8 @@
   (gl:viewport 0 0 width height)
   (gl:matrix-mode :projection)
   (gl:load-identity)
-  (gl:ortho -100 100 -100 100 0 1)
+  (with-vec (x y (dim (world w)))
+    (gl:ortho (- x) x (- y) y 0 1))
   (gl:matrix-mode :modelview))
 
 (defmethod glut:keyboard ((w game-window) key x y)
