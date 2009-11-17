@@ -345,6 +345,29 @@
       (gl:vertex -50 -50))))
 
 
+;;;; Waves
+
+(defclass wave ()
+  ((enemies :initarg :enemies :accessor enemies)
+   (start-tick :initarg :start-tick :accessor start-tick)
+   (wait-ticks :initarg :wait-ticks :accessor wait-ticks)
+   (last-release-tick :initform nil :accessor last-release-tick)))
+
+(defmethod update ((w wave) tick world)
+  (when (>= tick (start-tick w))
+    (cond ((null (enemies w))
+           (remove-object w world))
+          ((or (null (last-release-tick w))
+               (>= (- tick (last-release-tick w)) (wait-ticks w)))
+           (release-an-enemy w world)
+           (setf (last-release-tick w) tick)))))
+
+(defmethod render ((w wave)))  
+
+(defun release-an-enemy (wave world)
+  (add-object (pop (enemies wave)) world))
+
+
 ;;;; Game world
 
 (defclass world ()
@@ -395,8 +418,25 @@
                                                (-50.0 . -50.0)))))
     (add-object (make-instance 'blaster-tower :pos (vec 0.0 0.0)) world)
     (add-object (make-instance 'blaster-tower :pos (vec 20.0 20.0)) world)
-    (add-object (make-instance 'sqrewy :pos (vec 0.0 110.0) :speed 1.0 :path path) world)
-    (add-object (make-instance 'sqrewy :pos (vec 0.0 100.0) :speed 1.0 :path path) world)
+    (add-object
+     (make-instance
+      'wave
+      :start-tick 100
+      :wait-ticks 50
+      :enemies (list (make-instance 'sqrewy :pos (vec 0.0 100.0) :speed 1.0 :path path)
+                     (make-instance 'sqrewy :pos (vec 0.0 100.0) :speed 1.0 :path path)
+                     (make-instance 'sqrewy :pos (vec 0.0 100.0) :speed 1.0 :path path)))
+     world)
+    (add-object
+     (make-instance
+      'wave
+      :start-tick 500
+      :wait-ticks 20
+      :enemies (list (make-instance 'sqrewy :pos (vec 0.0 100.0) :speed 1.5 :path path)
+                     (make-instance 'sqrewy :pos (vec 0.0 100.0) :speed 1.5 :path path)
+                     (make-instance 'sqrewy :pos (vec 0.0 100.0) :speed 1.5 :path path)
+                     (make-instance 'sqrewy :pos (vec 0.0 100.0) :speed 1.5 :path path)))
+     world)
     (add-object path world)
     (add-object (make-instance 'stupid) world)
     (add-object (make-instance 'grid) world)
