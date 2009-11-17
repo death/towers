@@ -373,6 +373,7 @@
 (defclass world ()
   ((projectile-objects :initform '() :accessor projectile-objects)
    (tower-objects :initform '() :accessor tower-objects)
+   (enemy-objects :initform '() :accessor enemy-objects)
    (other-objects :initform '() :accessor other-objects)
    (dim :initform (vec 100.0 100.0) :accessor dim)))
 
@@ -383,12 +384,14 @@
   (typecase object
     (projectile (push object (projectile-objects world)))
     (tower (push object (tower-objects world)))
+    (enemy (push object (enemy-objects world)))
     (t (push object (other-objects world)))))
 
 (defun remove-object (object world)
   (typecase object
     (projectile (alexandria:deletef (projectile-objects world) object :count 1))
     (tower (alexandria:deletef (tower-objects world) object :count 1))
+    (enemy (alexandria:deletef (enemy-objects world) object :count 1))
     (t (alexandria:deletef (other-objects world) object :count 1))))
 
 (defun map-objects (function world &key order)
@@ -396,6 +399,7 @@
     ((:render :update :hit-test nil)
      (mapc function (other-objects world))
      (mapc function (tower-objects world))
+     (mapc function (enemy-objects world))
      (mapc function (projectile-objects world)))))
 
 (defmethod update ((w world) tick world)
