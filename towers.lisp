@@ -276,6 +276,7 @@
   (gl:load-identity)
   (gl:clear-color 0 0 0 0)
   (gl:clear :color-buffer)
+  (gl:translate .375 .375 0)
   (render (world w))
   (glut:swap-buffers))
 
