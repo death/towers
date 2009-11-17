@@ -20,6 +20,9 @@
 (defun rad (deg)
   (/ (* (load-time-value (coerce pi 'single-float)) deg) 180.0))
 
+(defun deg (rad)
+  (/ (* 180.0 rad) (load-time-value (coerce pi 'single-float))))
+
 (defun sind (deg)
   (sin (rad deg)))
 
@@ -55,7 +58,9 @@
   (vec (x v) (y v)))
 
 (defun unit (&optional (dir 0.0))
-  (vec (sind dir) (cosd dir)))
+  (if (consp dir)
+      (vec/ dir (vec-mag dir))
+      (vec (sind dir) (cosd dir))))
 
 (defun vec-clear (vec)
   (setf (x vec) 0.0)
@@ -142,6 +147,11 @@
        ((,x (car ,vec))
         (,y (cdr ,vec)))
        ,@forms)))
+
+(defun vec=~ (v1 v2 &optional (epsilon 0.1))
+  (flet ((=~ (a b) (< (abs (- a b)) epsilon)))
+    (and (=~ (x v1) (x v2))
+         (=~ (y v1) (y v2)))))
 
 (defun vel-vec (mag dir)
   (vec*= (unit dir) mag))
