@@ -17,6 +17,135 @@
          (gl:matrix-mode ,mode)
          (gl:pop-matrix)))))
 
+(defun rad (deg)
+  (/ (* (load-time-value (coerce pi 'single-float)) deg) 180.0))
+
+(defun sind (deg)
+  (sin (rad deg)))
+
+(defun cosd (deg)
+  (cos (rad deg)))
+
+(defun draw-circle (radius)
+  (gl:with-primitive :line-loop
+    (loop for angle from 0 below 360 by 5
+          for x = (* radius (sind angle))
+          for y = (* radius (cosd angle))
+          do (gl:vertex x y))))
+
+(defun square (x)
+  (* x x))
+
+
+;;;; 2D vectors
+
+(defun vec (x y) (cons x y))
+
+(defun x (vec) (car vec))
+
+(defun y (vec) (cdr vec))
+
+(defun (setf x) (new-x vec)
+  (setf (car vec) new-x))
+
+(defun (setf y) (new-y vec)
+  (setf (cdr vec) new-y))
+
+(defun copy-vec (v)
+  (vec (x v) (y v)))
+
+(defun unit (&optional (dir 0.0))
+  (vec (sind dir) (cosd dir)))
+
+(defun vec-clear (vec)
+  (setf (x vec) 0.0)
+  (setf (y vec) 0.0)
+  vec)
+
+(defun vec-mul (v1 v2)
+  (+ (* (x v1) (x v2))
+     (* (y v1) (y v2))))
+
+(defun vec+ (v1 v2)
+  (vec (+ (x v1) (x v2))
+       (+ (y v1) (y v2))))
+
+(defun vec+= (v1 v2)
+  (incf (x v1) (x v2))
+  (incf (y v1) (y v2))
+  v1)
+
+(defun vec- (v1 v2)
+  (vec (- (x v1) (x v2))
+       (- (y v1) (y v2))))
+
+(defun vec-= (v1 v2)
+  (decf (x v1) (x v2))
+  (decf (y v1) (y v2))
+  v1)
+
+(defun vec* (v a)
+  (vec (* (x v) a)
+       (* (y v) a)))
+
+(defun vec*= (v a)
+  (setf (x v) (* (x v) a))
+  (setf (y v) (* (y v) a))
+  v)
+
+(defun vec/ (v a)
+  (vec (/ (x v) a)
+       (/ (y v) a)))
+
+(defun vec/= (v a)
+  (setf (x v) (/ (x v) a))
+  (setf (y v) (/ (y v) a))
+  v)
+
+(defun vec-mag (v)
+  (sqrt (+ (square (x v)) (square (y v)))))
+
+(defun vec-distance (v1 v2)
+  (vec-distance-xy v1 (x v2) (y v2)))
+
+(defun vec-distance-xy (v x y)
+  (let ((ax (- (x v) x))
+        (ay (- (y v) y)))
+    (if (> ax ay)
+        (+ ax (/ ay 2.0))
+        (+ ay (/ ax 2.0)))))
+
+(defun vec-distance-acc (v1 v2)
+  (sqrt (+ (- (x v1) (x v2))
+           (- (y v1) (y v2)))))
+
+(defun vec-contains (v1 v2 &optional (r 1.0))
+  (vec-contains-xy v1 (x v2) (y v2) r))
+
+(defun vec-contains-xy (v x y &optional (r 1.0))
+  (and (>= x (* (- (x v)) r))
+       (<= x (* (x v) r))
+       (>= y (* (- (y v)) r))
+       (<= y (* (y v) r))))
+
+(defun vec-roll (v d)
+  (let ((tx (- (* (x v) (cos d))
+               (* (y v) (sin d)))))
+    (vec tx (+ (* (x v) (sin d))
+               (* (y v) (cos d))))))
+
+(defmacro with-vec ((x y vec &optional (update nil)) &body forms)
+  (alexandria:once-only (vec)
+    `(,(if update
+           'symbol-macrolet
+           'let)
+       ((,x (car ,vec))
+        (,y (cdr ,vec)))
+       ,@forms)))
+
+(defun vel-vec (mag dir)
+  (vec*= (unit dir) mag))
+
 
 ;;;; Game object protocol
 
