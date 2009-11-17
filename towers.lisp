@@ -255,8 +255,8 @@
 
 ;;;; Game window
 
-(defparameter *window-width* 500)
-(defparameter *window-height* 500)
+(defvar *window-width* 500)
+(defvar *window-height* 500)
 
 (defclass game-window (glut:window)
   ((world :initarg :world :accessor world)
@@ -280,6 +280,8 @@
   (glut:swap-buffers))
 
 (defmethod glut:reshape ((w game-window) width height)
+  (setf *window-width* width)
+  (setf *window-height* height)
   (gl:viewport 0 0 width height)
   (gl:matrix-mode :projection)
   (gl:load-identity)
