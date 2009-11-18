@@ -111,18 +111,11 @@
   (sqrt (+ (square (x v)) (square (y v)))))
 
 (defun vec-distance (v1 v2)
-  (vec-distance-xy v1 (x v2) (y v2)))
+  (sqrt (vec-distance-sq v1 v2)))
 
-(defun vec-distance-xy (v x y)
-  (let ((ax (- (x v) x))
-        (ay (- (y v) y)))
-    (if (> ax ay)
-        (+ ax (/ ay 2.0))
-        (+ ay (/ ax 2.0)))))
-
-(defun vec-distance-acc (v1 v2)
-  (sqrt (+ (- (x v1) (x v2))
-           (- (y v1) (y v2)))))
+(defun vec-distance-sq (v1 v2)
+  (+ (square (- (x v1) (x v2)))
+     (square (- (y v1) (y v2)))))
 
 (defun vec-contains (v1 v2 &optional (r 1.0))
   (vec-contains-xy v1 (x v2) (y v2) r))
@@ -132,12 +125,6 @@
        (<= x (* (x v) r))
        (>= y (* (- (y v)) r))
        (<= y (* (y v) r))))
-
-(defun vec-roll (v d)
-  (let ((tx (- (* (x v) (cos d))
-               (* (y v) (sin d)))))
-    (vec tx (+ (* (x v) (sin d))
-               (* (y v) (cos d))))))
 
 (defmacro with-vec ((x y vec &optional (update nil)) &body forms)
   (alexandria:once-only (vec)
