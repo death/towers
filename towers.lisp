@@ -146,8 +146,22 @@
 
 ;;;; Game object protocol
 
+(defclass collidable-object ()
+  ((collision-radius :initarg :collision-radius :accessor collision-radius)
+   (pos :initarg :pos :accessor pos)))
+
 (defgeneric update (object tick world))
 (defgeneric render (object))
+
+
+;;;; Collision detection
+
+(defun collides-p (a b)
+  (let ((pa (pos a))
+        (pb (pos b))
+        (ra (collision-radius a))
+        (rb (collision-radius b)))
+    (< (vec-distance-sq pa pb) (square (+ ra rb)))))
 
 
 ;;;; Grid object
@@ -230,18 +244,32 @@
       (gl:vertex 1 8)
       (gl:vertex -1 8))))
 
-(defclass projectile ()
-  ((pos :initarg :pos :accessor pos)
-   (vel :initarg :vel :accessor vel)))
+(defclass projectile (collidable-object)
+  ((vel :initarg :vel :accessor vel)))
 
 (defmethod update ((proj projectile) tick world)
   (declare (ignore tick))
   (vec+= (pos proj) (vel proj))
   (unless (vec-contains (dim world) (pos proj))
-    (remove-object proj world)))
+    (remove-object proj world)
+    (return-from update))
+  (let ((enemies-hit '()))
+    (map-objects (lambda (enemy)
+                   (when (collides-p proj enemy)
+                     (push enemy enemies-hit)))
+                 world
+                 :order :hit-test :type 'enemy)
+    (when enemies-hit
+      (projectile-hit proj enemies-hit world))))
+
+(defun projectile-hit (proj enemies world)
+  (dolist (enemy enemies)
+    (remove-object enemy world))
+  (remove-object proj world))
 
 (defclass blaster-projectile (projectile)
-  ())
+  ()
+  (:default-initargs :collision-radius 1))
 
 (defmethod tower-projectile ((tower blaster-tower))
   (let ((vel (vel-vec 1.0 (- (angle tower)))))
@@ -259,9 +287,8 @@
 
 ;;;; Enemies
 
-(defclass enemy ()
-  ((pos :initarg :pos :accessor pos)
-   (spd :initarg :speed :accessor spd)
+(defclass enemy (collidable-object)
+  ((spd :initarg :speed :accessor spd)
    (path :initarg :path :accessor path)
    (next-pos-idx :initform 0 :accessor next-pos-idx)))
 
@@ -283,7 +310,8 @@
 
 (defclass sqrewy (enemy)
   ((angle :initform 0 :accessor angle)
-   (dir :initform '> :accessor dir)))
+   (dir :initform '> :accessor dir))
+  (:default-initargs :collision-radius 2))
 
 (defmethod update :after ((sq sqrewy) tick world)
   (declare (ignore tick world))
@@ -381,13 +409,16 @@
     (enemy (alexandria:deletef (enemy-objects world) object :count 1))
     (t (alexandria:deletef (other-objects world) object :count 1))))
 
-(defun map-objects (function world &key order)
-  (ecase order
-    ((:render :update :hit-test nil)
-     (mapc function (other-objects world))
-     (mapc function (tower-objects world))
-     (mapc function (enemy-objects world))
-     (mapc function (projectile-objects world)))))
+(defun map-objects (function world &key order (type t))
+  (flet ((maybe-call-function (object)
+           (when (typep object type)
+             (funcall function object))))
+    (ecase order
+      ((:render :update :hit-test nil)
+       (mapc #'maybe-call-function (other-objects world))
+       (mapc #'maybe-call-function (tower-objects world))
+       (mapc #'maybe-call-function (enemy-objects world))
+       (mapc #'maybe-call-function (projectile-objects world))))))
 
 (defmethod update ((w world) tick world)
   (declare (ignore world))
@@ -395,8 +426,19 @@
                  (update object tick w))
                w :order :update))
 
+(defparameter *draw-collision-circles* nil)
+
 (defmethod render ((w world))
-  (map-objects #'render w :order :render))
+  (map-objects #'render w :order :render)
+  (when *draw-collision-circles*
+    (map-objects
+     (lambda (object)
+       (gl:with-pushed-matrix
+         (with-vec (x y (pos object))
+           (gl:translate x y 0))
+         (gl:color 1 0 0)
+         (draw-circle (collision-radius object))))
+     w :order :render :type 'collidable-object)))
 
 
 ;;;; Levels
@@ -406,7 +448,7 @@
         (path (make-instance 'path :vertices #((0.0 . 100.0)
                                                (0.0 . 0.0)
                                                (-50.0 . -50.0)))))
-    (add-object (make-instance 'blaster-tower :pos (vec 0.0 0.0)) world)
+    (add-object (make-instance 'blaster-tower :pos (vec -50.0 -20.0)) world)
     (add-object (make-instance 'blaster-tower :pos (vec 20.0 20.0)) world)
     (add-object
      (make-instance
