@@ -278,6 +278,9 @@
       (setf next-pos (aref vertices (next-pos-idx e))))
     (vec+= pos (vel-vec (spd e) (vec- next-pos pos)))))
 
+(defun enemy-suicide (enemy world)
+  (remove-object enemy world))
+
 (defclass sqrewy (enemy)
   ((angle :initform 0 :accessor angle)
    (dir :initform '> :accessor dir)))
@@ -305,9 +308,6 @@
       (gl:vertex 2 -2)
       (gl:vertex 2 2)
       (gl:vertex -2 2))))
-
-(defun enemy-suicide (enemy world)
-  (remove-object enemy world))
 
 
 
@@ -393,8 +393,7 @@
   (declare (ignore world))
   (map-objects (lambda (object)
                  (update object tick w))
-               w
-               :order :update))
+               w :order :update))
 
 (defmethod render ((w world))
   (map-objects #'render w :order :render))
