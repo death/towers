@@ -164,7 +164,7 @@
     (< (vec-distance-sq pa pb) (square (+ ra rb)))))
 
 
-;;;; Grid object
+;;;; Grid
 
 (defclass grid ()
   ())
@@ -186,7 +186,7 @@
         (gl:vertex (* x 10) 170)))))
 
 
-;;;; Path object
+;;;; Path
 
 (defclass path ()
   ((vertices :initarg :vertices :accessor vertices)))
@@ -257,8 +257,7 @@
     (map-objects (lambda (enemy)
                    (when (collides-p proj enemy)
                      (push enemy enemies-hit)))
-                 world
-                 :order :hit-test :type 'enemy)
+                 world :order :hit-test :type 'enemy)
     (when enemies-hit
       (projectile-hit proj enemies-hit world))))
 
