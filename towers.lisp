@@ -351,7 +351,7 @@
 
 (defmethod render ((object stupid))
   (gl:color 1 1 1)
-  (display-text 10 15 "Hello stupid")
+  (display-text 10 15 "Hello stupid" t)
   (gl:with-pushed-matrix
     (gl:color 1 0 0)
     (gl:rotate (angle object) 0 0 1)
@@ -533,14 +533,15 @@
       (update (world w) (tick w) (world w))
       (glut:post-redisplay))))
 
-(defun display-text (x y object)
+(defun display-text (x y object &optional (window-coords nil))
   (unless (stringp object)
     (setf object (princ-to-string object)))
   (with-pushed-matrix-in-mode :projection
-    (gl:load-identity)
-    (glu:ortho-2d 0 *window-width* 0 *window-height*)
-    (gl:scale 1 -1 1)
-    (gl:translate 0 (- *window-height*) 0)
+    (when window-coords
+      (gl:load-identity)
+      (glu:ortho-2d 0 *window-width* 0 *window-height*)
+      (gl:scale 1 -1 1)
+      (gl:translate 0 (- *window-height*) 0))
     (with-pushed-matrix-in-mode :modelview
       (gl:load-identity)
       (gl:raster-pos x y)
