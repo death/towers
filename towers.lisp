@@ -226,8 +226,6 @@
   (:default-initargs :fire-rate 20))
 
 (defmethod update ((tower blaster-tower) tick world)
-  (when (>= (incf (angle tower)) 360.0)
-    (setf (angle tower) 0.0))
   (try-fire tower tick world))
 
 (defmethod render ((tower blaster-tower))
@@ -247,6 +245,8 @@
 (defclass projectile (collidable-object)
   ((vel :initarg :vel :accessor vel)))
 
+(defgeneric projectile-hit (projectile enemies world))
+
 (defmethod update ((proj projectile) tick world)
   (declare (ignore tick))
   (vec+= (pos proj) (vel proj))
@@ -262,20 +262,16 @@
     (when enemies-hit
       (projectile-hit proj enemies-hit world))))
 
-(defun projectile-hit (proj enemies world)
-  (dolist (enemy enemies)
-    (remove-object enemy world))
-  (remove-object proj world))
-
 (defclass blaster-projectile (projectile)
-  ()
+  ((damage :initarg :damage :accessor damage))
   (:default-initargs :collision-radius 1))
 
 (defmethod tower-projectile ((tower blaster-tower))
   (let ((vel (vel-vec 1.0 (- (angle tower)))))
     (make-instance 'blaster-projectile
                    :pos (vec+= (vec* vel 5.0) (pos tower))
-                   :vel vel)))
+                   :vel vel
+                   :damage 1)))
 
 (defmethod render ((proj blaster-projectile))
   (gl:with-pushed-matrix
@@ -284,13 +280,20 @@
     (gl:color 0 1 0)
     (draw-circle 1)))
 
+(defmethod projectile-hit ((proj blaster-projectile) enemies world)
+  (dolist (enemy enemies)
+    (when (<= (decf (hit-points enemy) (damage proj)) 0)
+      (remove-object enemy world)))
+  (remove-object proj world))
+
 
 ;;;; Enemies
 
 (defclass enemy (collidable-object)
   ((spd :initarg :speed :accessor spd)
    (path :initarg :path :accessor path)
-   (next-pos-idx :initform 0 :accessor next-pos-idx)))
+   (next-pos-idx :initform 0 :accessor next-pos-idx)
+   (hit-points :initarg :hit-points :accessor hit-points)))
 
 (defmethod update ((e enemy) tick world)
   (declare (ignore tick))
@@ -311,7 +314,7 @@
 (defclass sqrewy (enemy)
   ((angle :initform 0 :accessor angle)
    (dir :initform '> :accessor dir))
-  (:default-initargs :collision-radius 2))
+  (:default-initargs :collision-radius 2 :hit-points 2))
 
 (defmethod update :after ((sq sqrewy) tick world)
   (declare (ignore tick world))
@@ -449,7 +452,7 @@
                                                (0.0 . 0.0)
                                                (-50.0 . -50.0)))))
     (add-object (make-instance 'blaster-tower :pos (vec -50.0 -20.0)) world)
-    (add-object (make-instance 'blaster-tower :pos (vec 20.0 20.0)) world)
+    (add-object (make-instance 'blaster-tower :pos (vec 0.0 -50.0)) world)
     (add-object
      (make-instance
       'wave
