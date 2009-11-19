@@ -202,6 +202,41 @@
             (gl:vertex x y)))))
 
 
+;;;; Message
+
+(defclass message ()
+  ((pos :initarg :pos :accessor pos)
+   (color :initarg :color :accessor color)
+   (text :initarg :text :accessor text)))
+
+(defmethod update ((m message) tick world)
+  (declare (ignore tick world)))
+
+(defmethod render ((m message))
+  (gl:with-pushed-matrix
+    (apply #'gl:color (color m))
+    (with-vec (x y (pos m))
+      (display-text x y (text m)))))
+
+
+;;;; Homebase
+
+(defclass homebase (collidable-object)
+  ((lives :initarg :lives :accessor lives))
+  (:default-initargs :collision-radius 8))
+
+(defmethod update ((hb homebase) tick world)
+  (declare (ignore tick world)))
+
+(defmethod render ((hb homebase))
+  (gl:color 0.6 0.2 0.8)
+  (gl:with-pushed-matrix
+    (with-vec (x y (pos hb))
+      (gl:translate x y 0)
+      (draw-circle 8)
+      (display-text (- x 1) (- y 1) (princ-to-string (lives hb))))))
+
+
 ;;;; Towers
 
 (defclass tower ()
@@ -299,6 +334,13 @@
   (let* ((pos (pos e))
          (vertices (vertices (path e)))
          (next-pos (aref vertices (next-pos-idx e))))
+    (map-objects (lambda (hb)
+                   (when (collides-p e hb)
+                     (enemy-suicide e world)
+                     (when (= (decf (lives hb)) 0)
+                       (game-over world))
+                     (return-from update)))
+                 world :order :hit-test :type 'homebase)
     (when (vec=~ pos next-pos (spd e))
       (incf (next-pos-idx e))
       (when (= (next-pos-idx e) (length vertices))
@@ -310,6 +352,14 @@
 (defun enemy-suicide (enemy world)
   (remove-object enemy world))
 
+(defun game-over (world)
+  (add-object
+   (make-instance 'message
+                  :pos (vec -14.0 0.0)
+                  :color '(1 0 0)
+                  :text "GAME OVER")
+   world))
+                  
 (defclass sqrewy (enemy)
   ((angle :initform 0 :accessor angle)
    (dir :initform '> :accessor dir))
@@ -388,28 +438,27 @@
 ;;;; Game world
 
 (defclass world ()
-  ((projectile-objects :initform '() :accessor projectile-objects)
-   (tower-objects :initform '() :accessor tower-objects)
-   (enemy-objects :initform '() :accessor enemy-objects)
-   (other-objects :initform '() :accessor other-objects)
+  ((objects :initform (make-array 5 :initial-element '()) :accessor objects)
    (dim :initform (vec 100.0 100.0) :accessor dim)))
 
 (defun make-world ()
   (make-instance 'world))
 
 (defun add-object (object world)
+  (push object (aref (objects world) (object-list-index object))))
+
+(defun object-list-index (object)
   (typecase object
-    (projectile (push object (projectile-objects world)))
-    (tower (push object (tower-objects world)))
-    (enemy (push object (enemy-objects world)))
-    (t (push object (other-objects world)))))
+    (message 4)
+    (projectile 3)
+    (enemy 2)
+    (tower 1)
+    (t 0)))
 
 (defun remove-object (object world)
-  (typecase object
-    (projectile (alexandria:deletef (projectile-objects world) object :count 1))
-    (tower (alexandria:deletef (tower-objects world) object :count 1))
-    (enemy (alexandria:deletef (enemy-objects world) object :count 1))
-    (t (alexandria:deletef (other-objects world) object :count 1))))
+  (alexandria:deletef
+   (aref (objects world) (object-list-index object))
+   object :count 1))
 
 (defun map-objects (function world &key order (type t))
   (flet ((maybe-call-function (object)
@@ -417,10 +466,8 @@
              (funcall function object))))
     (ecase order
       ((:render :update :hit-test nil)
-       (mapc #'maybe-call-function (other-objects world))
-       (mapc #'maybe-call-function (tower-objects world))
-       (mapc #'maybe-call-function (enemy-objects world))
-       (mapc #'maybe-call-function (projectile-objects world))))))
+       (loop for list across (objects world) do
+             (mapc #'maybe-call-function list))))))
 
 (defmethod update ((w world) tick world)
   (declare (ignore world))
@@ -450,6 +497,7 @@
         (path (make-instance 'path :vertices #((0.0 . 100.0)
                                                (0.0 . 0.0)
                                                (-50.0 . -50.0)))))
+    (add-object (make-instance 'homebase :lives 2 :pos (vec -50.0 -50.0)) world)
     (add-object (make-instance 'blaster-tower :pos (vec -50.0 -20.0)) world)
     (add-object (make-instance 'blaster-tower :pos (vec 0.0 -50.0)) world)
     (add-object
