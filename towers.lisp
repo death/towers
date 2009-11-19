@@ -313,7 +313,7 @@
 (defclass sqrewy (enemy)
   ((angle :initform 0 :accessor angle)
    (dir :initform '> :accessor dir))
-  (:default-initargs :collision-radius 2 :hit-points 2))
+  (:default-initargs :collision-radius 2))
 
 (defmethod update :after ((sq sqrewy) tick world)
   (declare (ignore tick world))
@@ -457,19 +457,24 @@
       'wave
       :start-tick 100
       :wait-ticks 50
-      :enemies (list (make-instance 'sqrewy :pos (vec 0.0 100.0) :speed 1.0 :path path)
-                     (make-instance 'sqrewy :pos (vec 0.0 100.0) :speed 1.0 :path path)
-                     (make-instance 'sqrewy :pos (vec 0.0 100.0) :speed 1.0 :path path)))
+      :enemies (loop repeat 3 collecting
+                     (make-instance 'sqrewy
+                                    :pos (vec 0.0 100.0)
+                                    :speed 1.0
+                                    :path path
+                                    :hit-points 1)))
      world)
     (add-object
      (make-instance
       'wave
       :start-tick 500
       :wait-ticks 20
-      :enemies (list (make-instance 'sqrewy :pos (vec 0.0 100.0) :speed 1.5 :path path)
-                     (make-instance 'sqrewy :pos (vec 0.0 100.0) :speed 1.5 :path path)
-                     (make-instance 'sqrewy :pos (vec 0.0 100.0) :speed 1.5 :path path)
-                     (make-instance 'sqrewy :pos (vec 0.0 100.0) :speed 1.5 :path path)))
+      :enemies (loop repeat 4 collecting
+                     (make-instance 'sqrewy
+                                    :pos (vec 0.0 100.0)
+                                    :speed 1.5
+                                    :path path
+                                    :hit-points 4)))
      world)
     (add-object path world)
     (add-object (make-instance 'stupid) world)
