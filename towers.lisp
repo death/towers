@@ -12,6 +12,11 @@
 (defun deg (rad)
   (/ (* 180.0 rad) (load-time-value (coerce pi 'single-float))))
 
+(defun normalize-deg (deg)
+  (loop while (>= deg 360.0) do (decf deg 360.0))
+  (loop while (< deg 0.0) do (incf deg 360.0))
+  deg)
+
 (defun sind (deg)
   (sin (rad deg)))
 
@@ -27,6 +32,16 @@
 
 (defun square (x)
   (* x x))
+
+(defun best-element (list &key (key #'identity) (test #'<))
+  (assert list)
+  (let ((best (first list))
+        (best-key (funcall key (first list))))
+    (dolist (x (rest list))
+      (let ((key (funcall key x)))
+        (when (funcall test key best-key)
+          (setf best x best-key key))))
+    (values best best-key)))
 
 
 ;;;; 2D vectors
@@ -132,6 +147,9 @@
 (defun vel-vec (mag dir)
   (vec*= (unit dir) mag))
 
+(defun vec-angle (vec)
+  (deg (atan (y vec) (x vec))))
+
 
 ;;;; Game object protocol
 
@@ -158,7 +176,10 @@
         (pb (pos b))
         (ra (collision-radius a))
         (rb (collision-radius b)))
-    (< (vec-distance-sq pa pb) (square (+ ra rb)))))
+    (close-enough-p pa ra pb rb)))
+
+(defun close-enough-p (pa ra pb rb)
+  (< (vec-distance-sq pa pb) (square (+ ra rb))))
 
 
 ;;;; Grid
@@ -244,7 +265,10 @@
 
 (defclass shooting-tower-mixin ()
   ((last-shot-tick :initform nil :accessor last-shot-tick)
-   (fire-rate :initarg :fire-rate :accessor fire-rate)))
+   (fire-rate :initarg :fire-rate :accessor fire-rate)
+   (detection-radius :initarg :detection-radius :accessor detection-radius)
+   (active :initarg :active :accessor active-p))
+  (:default-initargs :active t))
 
 (defmethod try-fire ((tower shooting-tower-mixin) tick world)
   (let ((last-shot-tick (last-shot-tick tower)))
@@ -253,12 +277,52 @@
       (add-object (tower-projectile tower) world)
       (setf (last-shot-tick tower) tick))))
 
+(defmethod render :after ((tower shooting-tower-mixin))
+  (when (active-p tower)
+    (gl:with-pushed-matrix
+      (with-vec (x y (pos tower))
+        (gl:translate x y 0))
+      (gl:color 0 1 1)
+      (draw-circle (detection-radius tower)))))
+
 (defclass blaster-tower (tower shooting-tower-mixin)
   ((angle :initform 0.0 :accessor angle))
-  (:default-initargs :fire-rate 20 :collision-radius 8))
+  (:default-initargs :fire-rate 2 :collision-radius 8 :detection-radius 30))
 
 (defmethod update ((tower blaster-tower) tick world)
-  (try-fire tower tick world))
+  (let ((enemies (detect-enemies tower world)))
+    (when enemies
+      (when (some (lambda (enemy) (good-to-fire-p enemy tower)) enemies)
+        (try-fire tower tick world))
+      (aim tower (best-element enemies :key (lambda (enemy) (target-angle enemy tower)))))))
+
+(defun detect-enemies (tower world)
+  (let ((enemies '()))
+    (map-objects (lambda (enemy)
+                   (when (close-enough-p (pos enemy) (collision-radius enemy)
+                                         (pos tower) (detection-radius tower))
+                     (push enemy enemies)))
+                 world :order :hit-test :type 'enemy)
+    enemies))
+
+(defun target-angle (enemy tower)
+  ;; TODO: take account of projectile velocity
+  (normalize-deg (+ 270.0 (vec-angle (vec- (pos enemy) (pos tower))))))
+
+(defun good-to-fire-p (enemy tower)
+  (let ((aim-angle (angle tower))
+        (target-angle (target-angle enemy tower)))
+    (< (abs (- aim-angle target-angle)) 3.0)))
+
+(defun aim (tower enemy)
+  (let* ((aim-angle (angle tower))
+         (target-angle (target-angle enemy tower))
+         (diff (- target-angle aim-angle)))
+    (when (> diff 180.0) (decf diff 360.0))
+    (when (< diff -180.0) (incf diff 360.0))
+    (setf (angle tower)
+          (normalize-deg (+ (angle tower)
+                            (max -10.0 (min diff 10.0)))))))
 
 (defmethod render ((tower blaster-tower))
   (gl:with-pushed-matrix
@@ -303,7 +367,7 @@
   (:default-initargs :collision-radius 1))
 
 (defmethod tower-projectile ((tower blaster-tower))
-  (let ((vel (vel-vec 1.0 (- (angle tower)))))
+  (let ((vel (vel-vec 2.0 (- (angle tower)))))
     (make-instance 'blaster-projectile
                    :pos (vec+= (vec* vel 5.0) (pos tower))
                    :vel vel
@@ -331,7 +395,7 @@
 (defmethod initialize-instance :after ((factory tower-factory) &rest initargs)
   (declare (ignore initargs))
   (setf (prototype factory)
-        (make-instance (kind factory) :pos (pos factory)))
+        (make-instance (kind factory) :pos (pos factory) :active nil))
   (setf (collision-radius factory)
         (collision-radius (prototype factory))))
 
@@ -350,9 +414,10 @@
   (ecase op
     (:obtain
      (setf (new-tower factory)
-           (make-instance (kind factory) :pos (copy-vec pos))))
+           (make-instance (kind factory) :pos (copy-vec pos) :active nil)))
     (:release
      (add-object (new-tower factory) world)
+     (setf (active-p (new-tower factory)) t)
      (setf (new-tower factory) nil))
     (:move
      (let ((new (new-tower factory)))
@@ -519,8 +584,8 @@
                                                (0.0 . 0.0)
                                                (-50.0 . -50.0)))))
     (add-object (make-instance 'homebase :lives 2 :pos (vec -50.0 -50.0)) world)
-    (add-object (make-instance 'blaster-tower :pos (vec -50.0 -20.0)) world)
-    (add-object (make-instance 'blaster-tower :pos (vec 0.0 -50.0)) world)
+    (add-object (make-instance 'blaster-tower :pos (vec -20.0 -5.0)) world)
+    (add-object (make-instance 'blaster-tower :pos (vec 15.0 50.0)) world)
     (add-object (make-instance 'tower-factory :kind 'blaster-tower :pos (vec -60.0 -85.0) :cost 5) world)
     (add-object
      (make-instance
@@ -530,7 +595,7 @@
       :enemies (loop repeat 3 collecting
                      (make-instance 'sqrewy
                                     :pos (vec 0.0 100.0)
-                                    :speed 1.0
+                                    :speed 0.8
                                     :path path
                                     :hit-points 1)))
      world)
@@ -542,7 +607,7 @@
       :enemies (loop repeat 4 collecting
                      (make-instance 'sqrewy
                                     :pos (vec 0.0 100.0)
-                                    :speed 1.5
+                                    :speed 1.0
                                     :path path
                                     :hit-points 4)))
      world)
