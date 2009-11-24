@@ -247,8 +247,8 @@
 
 ;;;; Towers
 
-(defclass tower ()
-  ((pos :initarg :pos :accessor pos)))
+(defclass tower (selectable-object)
+  ())
 
 (defgeneric try-fire (tower tick world))
 (defgeneric tower-projectile (tower))
@@ -266,7 +266,7 @@
 
 (defclass blaster-tower (tower shooting-tower-mixin)
   ((angle :initform 0.0 :accessor angle))
-  (:default-initargs :fire-rate 20))
+  (:default-initargs :fire-rate 20 :collision-radius 8))
 
 (defmethod update ((tower blaster-tower) tick world)
   (try-fire tower tick world))
@@ -284,6 +284,11 @@
       (gl:vertex 1 0)
       (gl:vertex 1 8)
       (gl:vertex -1 8))))
+
+(defmethod select ((tower blaster-tower) op pos world)
+  (declare (ignore op pos world))
+  ;; todo
+  )
 
 (defclass projectile (collidable-object)
   ((vel :initarg :vel :accessor vel)))
