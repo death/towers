@@ -475,19 +475,19 @@
                  (update object tick w))
                w :order :update))
 
-(defparameter *draw-collision-circles* nil)
+(defparameter *draw-collision-circle-for-type*
+  'nil)
 
 (defmethod render ((w world))
   (map-objects #'render w :order :render)
-  (when *draw-collision-circles*
-    (map-objects
-     (lambda (object)
-       (gl:with-pushed-matrix
-         (with-vec (x y (pos object))
-           (gl:translate x y 0))
-         (gl:color 1 0 0)
-         (draw-circle (collision-radius object))))
-     w :order :render :type 'collidable-object)))
+  (map-objects
+   (lambda (object)
+     (gl:with-pushed-matrix
+       (with-vec (x y (pos object))
+         (gl:translate x y 0))
+       (gl:color 1 0 0)
+       (draw-circle (collision-radius object))))
+   w :order :render :type *draw-collision-circle-for-type*))
 
 
 ;;;; Levels
