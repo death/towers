@@ -242,7 +242,7 @@
     (with-vec (x y (pos hb))
       (gl:translate x y 0)
       (draw-circle 8)
-      (display-text (- x 1) (- y 1) (princ-to-string (lives hb))))))
+      (display-text (- x 1) (- y 1) (lives hb)))))
 
 
 ;;;; Towers
