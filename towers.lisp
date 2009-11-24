@@ -6,17 +6,6 @@
 
 ;;;; Utilities
 
-(defmacro with-pushed-matrix-in-mode (mode &body forms)
-  (alexandria:once-only (mode)
-    `(prog2
-         (progn
-           (gl:matrix-mode ,mode)
-           (gl:push-matrix))
-         (progn ,@forms)
-       (progn
-         (gl:matrix-mode ,mode)
-         (gl:pop-matrix)))))
-
 (defun rad (deg)
   (/ (* (load-time-value (coerce pi 'single-float)) deg) 180.0))
 
@@ -443,28 +432,6 @@
       (gl:vertex -2 2))))
 
 
-
-(defclass stupid ()
-  ((angle :initform 0 :accessor angle)))
-
-(defmethod update ((object stupid) tick world)
-  (declare (ignore tick world))
-  (when (>= (incf (angle object) 5) 360)
-    (setf (angle object) 0)))
-
-(defmethod render ((object stupid))
-  (gl:color 1 1 1)
-  (display-text 10 15 "Hello stupid" t)
-  (gl:with-pushed-matrix
-    (gl:color 1 0 0)
-    (gl:rotate (angle object) 0 0 1)
-    (gl:with-primitive :line-loop
-      (gl:vertex -50 50)
-      (gl:vertex 50 50)
-      (gl:vertex 50 -50)
-      (gl:vertex -50 -50))))
-
-
 ;;;; Waves
 
 (defclass wave ()
@@ -580,7 +547,6 @@
                                     :hit-points 4)))
      world)
     (add-object path world)
-    (add-object (make-instance 'stupid) world)
     (add-object (make-instance 'grid) world)
     world))
 
@@ -600,16 +566,13 @@
        (return-from pick-object object)))
    world :order :hit-test :type 'selectable-object))
 
-(defvar *window-width* 500)
-(defvar *window-height* 500)
-
 (defclass game-window (glut:window)
   ((world :initarg :world :accessor world)
    (time-to-next-tick :initform nil :accessor time-to-next-tick)
    (tick :initform nil :accessor tick)
    (mouse :initform (make-instance 'mouse) :accessor mouse))
   (:default-initargs
-   :width *window-width* :height *window-height*
+   :width 500 :height 500
    :title "Game"
    :mode '(:double :rgb)))
 
@@ -627,8 +590,6 @@
   (glut:swap-buffers))
 
 (defmethod glut:reshape ((w game-window) width height)
-  (setf *window-width* width)
-  (setf *window-height* height)
   (gl:viewport 0 0 width height)
   (gl:matrix-mode :projection)
   (gl:load-identity)
@@ -676,20 +637,13 @@
       (update (world w) (tick w) (world w))
       (glut:post-redisplay))))
 
-(defun display-text (x y object &optional (window-coords nil))
+(defun display-text (x y object)
   (unless (stringp object)
     (setf object (princ-to-string object)))
-  (with-pushed-matrix-in-mode :projection
-    (when window-coords
-      (gl:load-identity)
-      (glu:ortho-2d 0 *window-width* 0 *window-height*)
-      (gl:scale 1 -1 1)
-      (gl:translate 0 (- *window-height*) 0))
-    (with-pushed-matrix-in-mode :modelview
-      (gl:load-identity)
-      (gl:raster-pos x y)
-      (glut:bitmap-string (cffi:make-pointer 3) object)))
-  (gl:matrix-mode :modelview))
+  (gl:with-pushed-matrix
+    (gl:load-identity)
+    (gl:raster-pos x y)
+    (glut:bitmap-string (cffi:make-pointer 3) object)))
 
 
 ;;;; Game
