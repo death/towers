@@ -150,8 +150,16 @@
   ((collision-radius :initarg :collision-radius :accessor collision-radius)
    (pos :initarg :pos :accessor pos)))
 
+(defclass selectable-object ()
+  ((collision-radius :initarg :collision-radius :accessor collision-radius)
+   (pos :initarg :pos :accessor pos)))
+
 (defgeneric update (object tick world))
 (defgeneric render (object))
+(defgeneric select (object op pos world))
+
+(defmethod select ((object null) op pos world)
+  (declare (ignore op pos world)))
 
 
 ;;;; Collision detection
@@ -533,13 +541,27 @@
 
 ;;;; Game window
 
+(defclass mouse ()
+  ((pos :initform (vec 0.0 0.0) :accessor pos)
+   (selection :initform nil :accessor selection)))
+
+(defmethod collision-radius ((m mouse)) 2)
+
+(defun pick-object (mouse world)
+  (map-objects
+   (lambda (object)
+     (when (collides-p object mouse)
+       (return-from pick-object object)))
+   world :order :hit-test :type 'selectable-object))
+
 (defvar *window-width* 500)
 (defvar *window-height* 500)
 
 (defclass game-window (glut:window)
   ((world :initarg :world :accessor world)
    (time-to-next-tick :initform nil :accessor time-to-next-tick)
-   (tick :initform nil :accessor tick))
+   (tick :initform nil :accessor tick)
+   (mouse :initform (make-instance 'mouse) :accessor mouse))
   (:default-initargs
    :width *window-width* :height *window-height*
    :title "Game"
@@ -572,6 +594,27 @@
   (declare (ignore x y))
   (case key
     (#\Esc (glut:destroy-current-window))))
+
+(defmethod glut:motion ((w game-window) x y)
+  (multiple-value-bind (x y)
+      (glu:un-project x y 0.0)
+    (with-vec (mx my (pos (mouse w)) t)
+      (setf mx x)
+      (setf my (- y))))
+  (select (selection (mouse w)) :move (pos (mouse w)) (world w)))
+
+(defmethod glut:mouse ((w game-window) button state x y)
+  (glut:motion w x y)
+  (case button
+    (:left-button
+     (let ((m (mouse w)))
+       (case state
+         (:down
+          (setf (selection m) (pick-object m (world w)))
+          (select (selection m) :obtain (pos m) (world w)))
+         (:up
+          (select (selection m) :release (pos m) (world w))
+          (setf (selection m) nil)))))))
 
 (defparameter *frames-per-second* 30)
 (defparameter *tick-duration* (floor 1000 *frames-per-second*))
