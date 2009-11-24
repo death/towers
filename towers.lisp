@@ -333,6 +333,46 @@
       (remove-object enemy world)))
   (remove-object proj world))
 
+(defclass tower-factory (selectable-object)
+  ((cost :initarg :cost :accessor cost)
+   (kind :initarg :kind :accessor kind)
+   (prototype :accessor prototype)
+   (new-tower :initform nil :accessor new-tower)))
+
+(defmethod initialize-instance :after ((factory tower-factory) &rest initargs)
+  (declare (ignore initargs))
+  (setf (prototype factory)
+        (make-instance (kind factory) :pos (pos factory)))
+  (setf (collision-radius factory)
+        (collision-radius (prototype factory))))
+
+(defmethod update ((factory tower-factory) tick world)
+  (declare (ignore tick world)))
+
+(defmethod render ((factory tower-factory))
+  (render (prototype factory))
+  (when (new-tower factory)
+    (render (new-tower factory)))
+  (with-vec (x y (pos factory))
+    (gl:color 1.0 1.0 1.0)
+    (display-text (- x 2.0) (- y 10.0) (cost factory))))
+
+(defmethod select ((factory tower-factory) op pos world)
+  (ecase op
+    (:obtain
+     (setf (new-tower factory)
+           (make-instance (kind factory) :pos (copy-vec pos))))
+    (:release
+     (add-object (new-tower factory) world)
+     (setf (new-tower factory) nil))
+    (:move
+     (let ((new (new-tower factory)))
+       (when new
+         (with-vec (sx sy pos)
+           (with-vec (tx ty (pos new) t)
+             (setf tx sx)
+             (setf ty sy))))))))
+                             
 
 ;;;; Enemies
 
@@ -514,6 +554,7 @@
     (add-object (make-instance 'homebase :lives 2 :pos (vec -50.0 -50.0)) world)
     (add-object (make-instance 'blaster-tower :pos (vec -50.0 -20.0)) world)
     (add-object (make-instance 'blaster-tower :pos (vec 0.0 -50.0)) world)
+    (add-object (make-instance 'tower-factory :kind 'blaster-tower :pos (vec -60.0 -85.0) :cost 5) world)
     (add-object
      (make-instance
       'wave
