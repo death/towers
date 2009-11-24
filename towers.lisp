@@ -461,13 +461,14 @@
    object :count 1))
 
 (defun map-objects (function world &key order (type t))
-  (flet ((maybe-call-function (object)
-           (when (typep object type)
-             (funcall function object))))
-    (ecase order
-      ((:render :update :hit-test nil)
-       (loop for list across (objects world) do
-             (mapc #'maybe-call-function list))))))
+  (unless (alexandria:type= type 'nil)
+    (flet ((maybe-call-function (object)
+             (when (typep object type)
+               (funcall function object))))
+      (ecase order
+        ((:render :update :hit-test nil)
+         (loop for list across (objects world) do
+               (mapc #'maybe-call-function list)))))))
 
 (defmethod update ((w world) tick world)
   (declare (ignore world))
