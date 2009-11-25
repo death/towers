@@ -402,8 +402,12 @@
 (defmethod projectile-hit ((proj blaster-projectile) enemies world)
   (dolist (enemy enemies)
     (when (<= (decf (hit-points enemy) (damage proj)) 0)
-      (remove-object enemy world)))
+      (enemy-kill enemy world)))
   (remove-object proj world))
+
+(defun enemy-kill (enemy world)
+  (incf (cash (player world)) (cash-reward enemy))
+  (remove-object enemy world))
 
 (defclass tower-factory (selectable-object)
   ((cost :initarg :cost :accessor cost)
@@ -453,7 +457,8 @@
   ((spd :initarg :speed :accessor spd)
    (path :initarg :path :accessor path)
    (next-pos-idx :initform 0 :accessor next-pos-idx)
-   (hit-points :initarg :hit-points :accessor hit-points)))
+   (hit-points :initarg :hit-points :accessor hit-points)
+   (cash-reward :initarg :cash-reward :accessor cash-reward)))
 
 (defmethod update ((e enemy) tick world)
   (declare (ignore tick))
@@ -621,7 +626,8 @@
                                     :pos (vec 0.0 100.0)
                                     :speed 0.8
                                     :path path
-                                    :hit-points 1)))
+                                    :hit-points 1
+                                    :cash-reward 1)))
      world)
     (add-object
      (make-instance
@@ -633,7 +639,8 @@
                                     :pos (vec 0.0 100.0)
                                     :speed 1.0
                                     :path path
-                                    :hit-points 4)))
+                                    :hit-points 4
+                                    :cash-reward 3)))
      world)
     (add-object path world)
     (add-object (make-instance 'grid) world)
