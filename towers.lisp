@@ -414,10 +414,10 @@
   (ecase op
     (:obtain
      (setf (new-tower factory)
-           (make-instance (kind factory) :pos (copy-vec pos) :active nil)))
+           (make-instance (kind factory) :pos (copy-vec pos) :active nil))
+     (setf (active-p (new-tower factory)) t))
     (:release
      (add-object (new-tower factory) world)
-     (setf (active-p (new-tower factory)) t)
      (setf (new-tower factory) nil))
     (:move
      (let ((new (new-tower factory)))
