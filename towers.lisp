@@ -320,7 +320,8 @@
       (draw-circle (detection-radius tower)))))
 
 (defclass blaster-tower (tower shooting-tower-mixin)
-  ((angle :initform 0.0 :accessor angle))
+  ((angle :initform 0.0 :accessor angle)
+   (projectile-speed :initarg :projectile-speed :accessor projectile-speed))
   (:default-initargs :fire-rate 2 :collision-radius 8 :detection-radius 30))
 
 (defmethod update ((tower blaster-tower) tick world)
@@ -401,7 +402,7 @@
   (:default-initargs :collision-radius 1))
 
 (defmethod tower-projectile ((tower blaster-tower))
-  (let ((vel (vel-vec 2.0 (- (angle tower)))))
+  (let ((vel (vel-vec (projectile-speed tower) (- (angle tower)))))
     (make-instance 'blaster-projectile
                    :pos (vec+= (vec* vel 5.0) (pos tower))
                    :vel vel
