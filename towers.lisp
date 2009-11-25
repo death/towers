@@ -182,6 +182,25 @@
   (< (vec-distance-sq pa pb) (square (+ ra rb))))
 
 
+;;;; Player
+
+(defclass player ()
+  ((cash :initarg :cash :accessor cash)))
+
+(defmethod update ((player player) tick world)
+  (declare (ignore tick world)))
+
+(defmethod render ((player player))
+  (gl:with-pushed-matrix
+    (gl:color 1.0 1.0 1.0)
+    (display-text -90.0 -80.0 (cash player))))
+
+(defun try-buy (tower cost player world)
+  (when (>= (cash player) cost)
+    (decf (cash player) cost)
+    (add-object tower world)))
+
+
 ;;;; Grid
 
 (defclass grid ()
@@ -417,7 +436,7 @@
            (make-instance (kind factory) :pos (copy-vec pos) :active nil))
      (setf (active-p (new-tower factory)) t))
     (:release
-     (add-object (new-tower factory) world)
+     (try-buy (new-tower factory) (cost factory) (player world) world)
      (setf (new-tower factory) nil))
     (:move
      (let ((new (new-tower factory)))
@@ -523,7 +542,7 @@
 ;;;; Game world
 
 (defclass world ()
-  ((objects :initform (make-array 5 :initial-element '()) :accessor objects)
+  ((objects :initform (make-array 6 :initial-element '()) :accessor objects)
    (dim :initform (vec 100.0 100.0) :accessor dim)))
 
 (defun make-world ()
@@ -534,6 +553,7 @@
 
 (defun object-list-index (object)
   (typecase object
+    (player 5)
     (message 4)
     (projectile 3)
     (enemy 2)
@@ -575,6 +595,9 @@
        (draw-circle (collision-radius object))))
    w :order :render :type *draw-collision-circle-for-type*))
 
+(defun player (world)
+  (first (aref (objects world) 5)))
+
 
 ;;;; Levels
 
@@ -583,6 +606,7 @@
         (path (make-instance 'path :vertices #((0.0 . 100.0)
                                                (0.0 . 0.0)
                                                (-50.0 . -50.0)))))
+    (add-object (make-instance 'player :cash 10) world)
     (add-object (make-instance 'homebase :lives 2 :pos (vec -50.0 -50.0)) world)
     (add-object (make-instance 'blaster-tower :pos (vec -20.0 -5.0)) world)
     (add-object (make-instance 'blaster-tower :pos (vec 15.0 50.0)) world)
