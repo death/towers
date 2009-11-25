@@ -658,6 +658,19 @@
                                     :hit-points 4
                                     :cash-reward 3)))
      world)
+    (add-object
+     (make-instance
+      'wave
+      :start-tick 1000
+      :wait-ticks 30
+      :enemies (loop repeat 10 collecting
+                     (make-instance 'sqrewy
+                                    :pos (vec 0.0 100.0)
+                                    :speed 1.1
+                                    :path path
+                                    :hit-points 5
+                                    :cash-reward 5)))
+     world)
     (add-object path world)
     (add-object (make-instance 'grid) world)
     world))
