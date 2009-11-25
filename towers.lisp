@@ -6,11 +6,13 @@
 
 ;;;; Utilities
 
+(defconstant single-pi (coerce pi 'single-float))
+
 (defun rad (deg)
-  (/ (* (load-time-value (coerce pi 'single-float)) deg) 180.0))
+  (/ (* single-pi deg) 180.0))
 
 (defun deg (rad)
-  (/ (* 180.0 rad) (load-time-value (coerce pi 'single-float))))
+  (/ (* 180.0 rad) single-pi))
 
 (defun normalize-deg (deg)
   (loop while (>= deg 360.0) do (decf deg 360.0))
@@ -23,12 +25,25 @@
 (defun cosd (deg)
   (cos (rad deg)))
 
-(defun draw-circle (radius)
-  (gl:with-primitive :line-loop
-    (loop for angle from 0 below 360 by 5
-          for x = (* radius (sind angle))
-          for y = (* radius (cosd angle))
-          do (gl:vertex x y))))
+(defun draw-circle (radius &optional (resolution 30) (filledp nil))
+  ;; http://github.com/sykopomp/until-it-dies/blob/master/src/primitives.lisp
+  ;; Stolen implementation and modified it a bit
+  (let* ((theta (* 2.0 (/ single-pi resolution)))
+         (tangential-factor (tan theta))
+         (radial-factor (- 1.0 (cos theta))))
+    (gl:with-primitives (if filledp :triangle-fan :line-loop)
+      (loop with x = radius
+            with y = 0.0
+            repeat resolution
+            do (gl:vertex x y)
+            (let ((tx (- y))
+                  (ty x))
+              (incf x (* tx tangential-factor))
+              (incf y (* ty tangential-factor)))
+            (let ((rx (- x))
+                  (ry (- y)))
+              (incf x (* rx radial-factor))
+              (incf y (* ry radial-factor)))))))
 
 (defun square (x)
   (* x x))
