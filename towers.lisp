@@ -325,7 +325,7 @@
   (:default-initargs
    :fire-rate 5
     :collision-radius 8
-    :detection-radius 30
+    :detection-radius 20
     :projectile-speed 2.0))
 
 (defmethod update ((tower blaster-tower) tick world)
@@ -646,8 +646,6 @@
                                                (-50.0 . -50.0)))))
     (add-object (make-instance 'player :cash 10) world)
     (add-object (make-instance 'homebase :lives 2 :pos (vec -50.0 -50.0)) world)
-    (add-object (make-instance 'blaster-tower :pos (vec -20.0 -5.0)) world)
-    (add-object (make-instance 'blaster-tower :pos (vec 15.0 50.0)) world)
     (add-object (make-instance 'tower-factory :kind 'blaster-tower :pos (vec -60.0 -85.0) :cost 5) world)
     (add-object
      (make-instance
@@ -685,7 +683,7 @@
                                     :pos (vec 0.0 100.0)
                                     :speed 1.1
                                     :path path
-                                    :hit-points 5
+                                    :hit-points 6
                                     :cash-reward 5)))
      world)
     (add-object path world)
