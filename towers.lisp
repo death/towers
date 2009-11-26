@@ -322,7 +322,11 @@
 (defclass blaster-tower (tower shooting-tower-mixin)
   ((angle :initform 0.0 :accessor angle)
    (projectile-speed :initarg :projectile-speed :accessor projectile-speed))
-  (:default-initargs :fire-rate 2 :collision-radius 8 :detection-radius 30))
+  (:default-initargs
+   :fire-rate 5
+    :collision-radius 8
+    :detection-radius 30
+    :projectile-speed 2.0))
 
 (defmethod update ((tower blaster-tower) tick world)
   (let ((enemies (detect-enemies tower world)))
@@ -341,8 +345,13 @@
     enemies))
 
 (defun target-angle (enemy tower)
-  ;; TODO: take account of projectile velocity
-  (normalize-deg (+ 270.0 (vec-angle (vec- (pos enemy) (pos tower))))))
+  (let ((pe (pos enemy))
+        (ve (vel enemy))
+        (pp (projectile-initial-position tower))
+        (vp (projectile-initial-velocity tower)))
+    (let* ((tc (/ (vec-distance pe pp) (vec-distance vp ve)))
+           (pe-prime (vec+= (vec* ve tc) pe)))
+      (normalize-deg (+ 270.0 (vec-angle (vec- pe-prime (pos tower))))))))
 
 (defun good-to-fire-p (enemy tower)
   (let ((aim-angle (angle tower))
@@ -401,12 +410,17 @@
   ((damage :initarg :damage :accessor damage))
   (:default-initargs :collision-radius 1))
 
+(defmethod projectile-initial-position ((tower blaster-tower))
+  (vec+= (vel-vec 7.0 (- (angle tower))) (pos tower)))
+
+(defmethod projectile-initial-velocity ((tower blaster-tower))
+  (vel-vec (projectile-speed tower) (- (angle tower))))
+
 (defmethod tower-projectile ((tower blaster-tower))
-  (let ((vel (vel-vec (projectile-speed tower) (- (angle tower)))))
-    (make-instance 'blaster-projectile
-                   :pos (vec+= (vec* vel 5.0) (pos tower))
-                   :vel vel
-                   :damage 1)))
+  (make-instance 'blaster-projectile
+                 :pos (projectile-initial-position tower)
+                 :vel (projectile-initial-velocity tower)
+                 :damage 1))
 
 (defmethod render ((proj blaster-projectile))
   (gl:with-pushed-matrix
@@ -472,9 +486,12 @@
 (defclass enemy (collidable-object)
   ((spd :initarg :speed :accessor spd)
    (path :initarg :path :accessor path)
-   (next-pos-idx :initform 0 :accessor next-pos-idx)
+   (next-pos-idx :initform 1 :accessor next-pos-idx)
    (hit-points :initarg :hit-points :accessor hit-points)
    (cash-reward :initarg :cash-reward :accessor cash-reward)))
+
+(defmethod vel ((e enemy))
+  (vel-vec (spd e) (vec- (aref (vertices (path e)) (next-pos-idx e)) (pos e))))
 
 (defmethod update ((e enemy) tick world)
   (declare (ignore tick))
@@ -494,7 +511,7 @@
         (enemy-suicide e world)
         (return-from update))
       (setf next-pos (aref vertices (next-pos-idx e))))
-    (vec+= pos (vel-vec (spd e) (vec- next-pos pos)))))
+    (vec+= pos (vel e))))
 
 (defun enemy-suicide (enemy world)
   (remove-object enemy world))
