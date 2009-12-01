@@ -76,6 +76,11 @@
 (defun copy-vec (v)
   (vec (x v) (y v)))
 
+(defun vec-assign (v x y)
+  (setf (x v) x)
+  (setf (y v) y)
+  v)
+
 (defun unit (&optional (dir 0.0))
   (if (consp dir)
       (vec/ dir (vec-mag dir))
@@ -473,12 +478,8 @@
      (setf (draw-detection-circle-p (new-tower factory)) nil)
      (setf (new-tower factory) nil))
     (:move
-     (let ((new (new-tower factory)))
-       (when new
-         (with-vec (sx sy pos)
-           (with-vec (tx ty (pos new) t)
-             (setf tx sx)
-             (setf ty sy))))))))
+     (alexandria:when-let (new (new-tower factory))
+       (vec-assign (pos new) (x pos) (y pos))))))
                              
 
 ;;;; Enemies
@@ -746,11 +747,8 @@
     (#\Esc (glut:destroy-current-window))))
 
 (defmethod glut:motion ((w game-window) x y)
-  (multiple-value-bind (x y)
-      (glu:un-project x y 0.0)
-    (with-vec (mx my (pos (mouse w)) t)
-      (setf mx x)
-      (setf my (- y))))
+  (multiple-value-bind (x y) (glu:un-project x y 0.0)
+    (vec-assign (pos (mouse w)) x (- y)))
   (select (selection (mouse w)) :move (pos (mouse w)) (world w)))
 
 (defmethod glut:mouse ((w game-window) button state x y)
