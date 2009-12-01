@@ -488,29 +488,32 @@
    (path :initarg :path :accessor path)
    (next-pos-idx :initform 1 :accessor next-pos-idx)
    (hit-points :initarg :hit-points :accessor hit-points)
-   (cash-reward :initarg :cash-reward :accessor cash-reward)))
-
-(defmethod vel ((e enemy))
-  (vel-vec (spd e) (vec- (aref (vertices (path e)) (next-pos-idx e)) (pos e))))
+   (cash-reward :initarg :cash-reward :accessor cash-reward)
+   (vel :accessor vel)))
 
 (defmethod update ((e enemy) tick world)
   (declare (ignore tick))
+  ;; Check collision with homebase
+  (map-objects (lambda (hb)
+                 (when (collides-p e hb)
+                   (enemy-suicide e world)
+                   (when (= (decf (lives hb)) 0)
+                     (game-over world))
+                   (return-from update)))
+               world :order :hit-test :type 'homebase)
+  ;; Compute position and velocity
   (let* ((pos (pos e))
          (vertices (vertices (path e)))
          (next-pos (aref vertices (next-pos-idx e))))
-    (map-objects (lambda (hb)
-                   (when (collides-p e hb)
-                     (enemy-suicide e world)
-                     (when (= (decf (lives hb)) 0)
-                       (game-over world))
-                     (return-from update)))
-                 world :order :hit-test :type 'homebase)
     (when (vec=~ pos next-pos (spd e))
       (incf (next-pos-idx e))
       (when (= (next-pos-idx e) (length vertices))
+        ;; This shouldn't happen, as we're supposed to crash into
+        ;; homebase before reaching the endpoint
         (enemy-suicide e world)
         (return-from update))
       (setf next-pos (aref vertices (next-pos-idx e))))
+    (setf (vel e) (vel-vec (spd e) (vec- next-pos pos)))
     (vec+= pos (vel e))))
 
 (defun enemy-suicide (enemy world)
