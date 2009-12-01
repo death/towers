@@ -715,7 +715,7 @@
    (tick :initform nil :accessor tick)
    (mouse :initform (make-instance 'mouse) :accessor mouse))
   (:default-initargs
-   :width 500 :height 500
+   :width 800 :height 800
    :title "Game"
    :mode '(:double :rgb)))
 
