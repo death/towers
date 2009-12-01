@@ -301,8 +301,8 @@
   ((last-shot-tick :initform nil :accessor last-shot-tick)
    (fire-rate :initarg :fire-rate :accessor fire-rate)
    (detection-radius :initarg :detection-radius :accessor detection-radius)
-   (active :initarg :active :accessor active-p))
-  (:default-initargs :active t))
+   (draw-detection-circle :initarg :draw-detection-circle :accessor draw-detection-circle-p))
+  (:default-initargs :draw-detection-circle nil))
 
 (defmethod try-fire ((tower shooting-tower-mixin) tick world)
   (let ((last-shot-tick (last-shot-tick tower)))
@@ -312,7 +312,7 @@
       (setf (last-shot-tick tower) tick))))
 
 (defmethod render :after ((tower shooting-tower-mixin))
-  (when (active-p tower)
+  (when (draw-detection-circle-p tower)
     (gl:with-pushed-matrix
       (with-vec (x y (pos tower))
         (gl:translate x y 0))
@@ -448,7 +448,7 @@
 (defmethod initialize-instance :after ((factory tower-factory) &rest initargs)
   (declare (ignore initargs))
   (setf (prototype factory)
-        (make-instance (kind factory) :pos (pos factory) :active nil))
+        (make-instance (kind factory) :pos (pos factory)))
   (setf (collision-radius factory)
         (collision-radius (prototype factory))))
 
@@ -467,10 +467,10 @@
   (ecase op
     (:obtain
      (setf (new-tower factory)
-           (make-instance (kind factory) :pos (copy-vec pos) :active nil))
-     (setf (active-p (new-tower factory)) t))
+           (make-instance (kind factory) :pos (copy-vec pos) :draw-detection-circle t)))
     (:release
      (try-buy (new-tower factory) (cost factory) (player world) world)
+     (setf (draw-detection-circle-p (new-tower factory)) nil)
      (setf (new-tower factory) nil))
     (:move
      (let ((new (new-tower factory)))
