@@ -735,62 +735,61 @@
 
 ;;;; Levels
 
-(defun make-level-1-world ()
-  (let ((world (make-instance 'world))
-        (path (make-instance 'path :vertices #((0.0 . 100.0)
-                                               (0.0 . 0.0)
-                                               (-50.0 . -50.0)))))
-    (add-object (make-instance 'player :cash 10) world)
-    (add-object (make-instance 'homebase :lives 2 :pos (vec -50.0 -50.0)) world)
-    (add-object (make-instance 'tower-control) world)
-    (add-object (make-instance 'tower-factory
-                               :kind 'blaster-tower
-                               :pos (vec -60.0 -85.0)
-                               :buy-prices #(5 5 7 10 15 20 30)
-                               :sell-prices #(0 2 5 7 10 15 25))
-                world)
-    (add-object
-     (make-instance
-      'wave
-      :start-tick 100
-      :wait-ticks 50
-      :enemies (loop repeat 5 collecting
-                     (make-instance 'sqrewy
-                                    :pos (vec 0.0 100.0)
-                                    :speed 0.8
-                                    :path path
-                                    :hit-points 1
-                                    :cash-reward 1)))
-     world)
-    (add-object
-     (make-instance
-      'wave
-      :start-tick 500
-      :wait-ticks 20
-      :enemies (loop repeat 6 collecting
-                     (make-instance 'sqrewy
-                                    :pos (vec 0.0 100.0)
-                                    :speed 1.0
-                                    :path path
-                                    :hit-points 2
-                                    :cash-reward 3)))
-     world)
-    (add-object
-     (make-instance
-      'wave
-      :start-tick 1000
-      :wait-ticks 30
-      :enemies (loop repeat 7 collecting
-                     (make-instance 'sqrewy
-                                    :pos (vec 0.0 100.0)
-                                    :speed 1.1
-                                    :path path
-                                    :hit-points 6
-                                    :cash-reward 5)))
-     world)
-    (add-object path world)
-    (add-object (make-instance 'grid) world)
-    world))
+(defgeneric make-level (name))
+
+(defmacro define-level (name &body objects)
+  (labels ((object-name (object)
+             (getf (cdr object) :named))
+           (object-class-name (object)
+             (car object))
+           (object-initargs (object)
+             (let ((list (copy-list (cdr object))))
+               (remf list :named)
+               list)))
+    (let ((object-names (loop for object in objects
+                              when (object-name object)
+                              collect it)))
+      `(defmethod make-level ((name (eql ',name)))
+         (let ((world (make-instance 'world)) ,@object-names)
+           ,@(loop for object in objects
+                   for name = (object-name object)
+                   for make = `(make-instance ',(object-class-name object) ,@(object-initargs object))
+                   collect `(add-object ,(if name `(setf ,name ,make) make) world))
+           world)))))
+
+(define-level level-1
+  (path :named path :vertices #((0.0 . 100.0) (0.0 . 0.0) (-50.0 . -50.0)))
+  (player :cash 10)
+  (homebase :lives 2 :pos (vec -50.0 -50.0))
+  (tower-control)
+  (tower-factory :kind 'blaster-tower :pos (vec -60.0 -85.0)
+                 :buy-prices #(5 5 7 10 15 20 30)
+                 :sell-prices #(0 2 5 7 10 15 25))
+  (wave :start-tick 100 :wait-ticks 50 :enemies
+        (loop repeat 5 collecting
+              (make-instance 'sqrewy
+                             :pos (vec 0.0 100.0)
+                             :speed 0.8
+                             :path path
+                             :hit-points 1
+                             :cash-reward 1)))
+  (wave :start-tick 500 :wait-ticks 20 :enemies
+        (loop repeat 6 collecting
+              (make-instance 'sqrewy
+                             :pos (vec 0.0 100.0)
+                             :speed 1.0
+                             :path path
+                             :hit-points 2
+                             :cash-reward 3)))
+  (wave :start-tick 1000 :wait-ticks 30 :enemies
+        (loop repeat 7 collecting
+              (make-instance 'sqrewy
+                             :pos (vec 0.0 100.0)
+                             :speed 1.1
+                             :path path
+                             :hit-points 6
+                             :cash-reward 5)))
+  (grid))
 
 
 ;;;; Game window
@@ -918,4 +917,4 @@
 
 (defun game ()
   (glut:display-window
-   (make-instance 'game-window :world (make-level-1-world))))
+   (make-instance 'game-window :world (make-level 'level-1))))
