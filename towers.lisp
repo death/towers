@@ -670,7 +670,7 @@
       'wave
       :start-tick 100
       :wait-ticks 50
-      :enemies (loop repeat 3 collecting
+      :enemies (loop repeat 5 collecting
                      (make-instance 'sqrewy
                                     :pos (vec 0.0 100.0)
                                     :speed 0.8
@@ -683,12 +683,12 @@
       'wave
       :start-tick 500
       :wait-ticks 20
-      :enemies (loop repeat 4 collecting
+      :enemies (loop repeat 6 collecting
                      (make-instance 'sqrewy
                                     :pos (vec 0.0 100.0)
                                     :speed 1.0
                                     :path path
-                                    :hit-points 4
+                                    :hit-points 2
                                     :cash-reward 3)))
      world)
     (add-object
@@ -696,7 +696,7 @@
       'wave
       :start-tick 1000
       :wait-ticks 30
-      :enemies (loop repeat 10 collecting
+      :enemies (loop repeat 7 collecting
                      (make-instance 'sqrewy
                                     :pos (vec 0.0 100.0)
                                     :speed 1.1
