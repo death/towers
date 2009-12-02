@@ -4,6 +4,13 @@
 (in-package #:towers)
 
 
+;;;; Configuration
+
+(defparameter *frames-per-second* 30)
+(defparameter *tick-duration* (floor 1000 *frames-per-second*))
+(defparameter *draw-collision-circle-for-type* 'nil)
+
+
 ;;;; Utilities
 
 (defconstant single-pi (coerce pi 'single-float))
@@ -633,9 +640,6 @@
                  (update object tick w))
                w :order :update))
 
-(defparameter *draw-collision-circle-for-type*
-  'nil)
-
 (defmethod render ((w world))
   (map-objects #'render w :order :render)
   (map-objects
@@ -798,8 +802,6 @@
   (declare (ignore picked-object))
   (release-object mouse world))
 
-(defparameter *frames-per-second* 30)
-(defparameter *tick-duration* (floor 1000 *frames-per-second*))
 
 (defmethod glut:idle ((w game-window))
   (let ((now (glut:get :elapsed-time)))
