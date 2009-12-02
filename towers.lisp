@@ -194,6 +194,9 @@
 (defclass selectable-object (pickable-object)
   ())
 
+(defclass clickable-object (pickable-object)
+  ())
+
 (defgeneric update (object tick world))
 (defgeneric render (object))
 (defgeneric select (object op pos world))
@@ -228,10 +231,56 @@
     (gl:color 1.0 1.0 1.0)
     (display-text -90.0 -80.0 (cash player))))
 
-(defun try-buy (tower cost player world)
-  (when (>= (cash player) cost)
-    (decf (cash player) cost)
+(defun try-buy (tower player world)
+  (when (>= (cash player) (buy-price tower))
+    (decf (cash player) (buy-price tower))
+    (incf (level tower))
     (add-object tower world)))
+
+(defun try-upgrade (tower player world)
+  (declare (ignore world))
+  (when (and (< (level tower) (max-level tower))
+             (>= (cash player) (buy-price tower)))
+    (decf (cash player) (buy-price tower))
+    (incf (level tower))))
+
+(defun sell (tower player world)
+  (incf (cash player) (sell-price tower))
+  (remove-object tower world))
+
+
+;;;; Tower control
+
+(defclass tower-control (clickable-object)
+  ((tower :initarg :tower :accessor tower)
+   (text :initarg :text :accessor text))
+  (:default-initargs :tower nil :collision-radius 16 :pos (vec 62.0 -82.0)
+                     :text "blah"))
+
+(defmethod update ((control tower-control) tick world)
+  (declare (ignore tick world)))
+
+(defmethod render ((control tower-control))
+  (alexandria:when-let (tower (tower control))
+    (gl:with-pushed-matrix
+      (gl:color 0.2 0.5 1)
+      (display-text 50.0 -75.0 (type-of tower))
+      (display-text 50.0 -80.0 (format nil "Level ~D" (level tower)))
+      (display-text 50.0 -85.0 "Upgrade")
+      (display-text 50.0 -90.0 "Sell")
+      (display-text 50.0 -95.0 (text control)))))
+
+(defmethod select ((control tower-control) op pos world)
+  (ecase op
+    (:obtain
+     (alexandria:when-let (tower (tower control))
+       (with-vec (x y pos)
+         (cond ((and (>= x 50.0) (>= y -86.0) (<= y -81.0))
+                (try-upgrade tower (player world) world))
+               ((and (>= x 50.0) (>= y -91.0) (<= y -86.0))
+                (sell tower (player world) world))))))
+    (:release)
+    (:move)))
 
 
 ;;;; Grid
@@ -310,22 +359,41 @@
 ;;;; Towers
 
 (defclass tower (selectable-object)
-  ())
+  ((level :initarg :level :accessor level)
+   (factory :initarg :factory :accessor tower-factory))
+  (:default-initargs :level 0))
 
 (defgeneric try-fire (tower tick world))
 (defgeneric tower-projectile (tower))
+(defgeneric fire-rate (tower))
+
+(defgeneric buy-price (object))
+(defgeneric sell-price (object))
+(defgeneric max-level (object))
+
+(defmethod buy-price ((tower tower))
+  (aref (buy-prices (tower-factory tower)) (level tower)))
+
+(defmethod sell-price ((tower tower))
+  (aref (sell-prices (tower-factory tower)) (level tower)))
+
+(defmethod max-level ((tower tower))
+  (length (buy-prices (tower-factory tower))))
 
 (defclass shooting-tower-mixin ()
   ((last-shot-tick :initform nil :accessor last-shot-tick)
-   (fire-rate :initarg :fire-rate :accessor fire-rate)
+   (fire-rate :initarg :base-fire-rate :accessor base-fire-rate)
    (detection-radius :initarg :detection-radius :accessor detection-radius)
    (draw-detection-circle :initarg :draw-detection-circle :accessor draw-detection-circle-p))
   (:default-initargs :draw-detection-circle nil))
 
+(defmethod fire-rate ((tower shooting-tower-mixin))
+  (* (base-fire-rate tower) (level tower)))
+
 (defmethod try-fire ((tower shooting-tower-mixin) tick world)
   (let ((last-shot-tick (last-shot-tick tower)))
     (when (or (null last-shot-tick)
-              (>= (- tick last-shot-tick) (fire-rate tower)))
+              (>= (- tick last-shot-tick) (floor *frames-per-second* (fire-rate tower))))
       (add-object (tower-projectile tower) world)
       (setf (last-shot-tick tower) tick))))
 
@@ -341,7 +409,7 @@
   ((angle :initform 0.0 :accessor angle)
    (projectile-speed :initarg :projectile-speed :accessor projectile-speed))
   (:default-initargs
-   :fire-rate 5
+   :base-fire-rate 1
     :collision-radius 8
     :detection-radius 20
     :projectile-speed 2.0))
@@ -401,11 +469,13 @@
       (gl:vertex -1 8))))
 
 (defmethod select ((tower blaster-tower) op pos world)
-  (declare (ignore op pos world))
+  (declare (ignore pos))
   (ecase op
     (:obtain
-     (setf (draw-detection-circle-p tower) t))
+     (setf (draw-detection-circle-p tower) t)
+     (setf (tower (tower-control world)) tower))
     (:release
+     (setf (tower (tower-control world)) nil)
      (setf (draw-detection-circle-p tower) nil))
     (:move)))
 
@@ -462,7 +532,8 @@
   (remove-object enemy world))
 
 (defclass tower-factory (draggable-object)
-  ((cost :initarg :cost :accessor cost)
+  ((buy-prices :initarg :buy-prices :accessor buy-prices)
+   (sell-prices :initarg :sell-prices :accessor sell-prices)
    (kind :initarg :kind :accessor kind)
    (prototype :accessor prototype)
    (new-tower :initform nil :accessor new-tower)))
@@ -483,15 +554,18 @@
     (render (new-tower factory)))
   (with-vec (x y (pos factory))
     (gl:color 1.0 1.0 1.0)
-    (display-text (- x 2.0) (- y 10.0) (cost factory))))
+    (display-text (- x 2.0) (- y 10.0) (aref (buy-prices factory) 0))))
 
 (defmethod select ((factory tower-factory) op pos world)
   (ecase op
     (:obtain
      (setf (new-tower factory)
-           (make-instance (kind factory) :pos (copy-vec pos) :draw-detection-circle t)))
+           (make-instance (kind factory)
+                          :pos (copy-vec pos)
+                          :draw-detection-circle t
+                          :factory factory)))
     (:release
-     (try-buy (new-tower factory) (cost factory) (player world) world)
+     (try-buy (new-tower factory) (player world) world)
      (setf (draw-detection-circle-p (new-tower factory)) nil)
      (setf (new-tower factory) nil))
     (:move
@@ -601,7 +675,7 @@
 ;;;; Game world
 
 (defclass world ()
-  ((objects :initform (make-array 6 :initial-element '()) :accessor objects)
+  ((objects :initform (make-array 7 :initial-element '()) :accessor objects)
    (dim :initform (vec 100.0 100.0) :accessor dim)))
 
 (defun make-world ()
@@ -612,6 +686,7 @@
 
 (defun object-list-index (object)
   (typecase object
+    (tower-control 6)
     (player 5)
     (message 4)
     (projectile 3)
@@ -654,6 +729,9 @@
 (defun player (world)
   (first (aref (objects world) 5)))
 
+(defun tower-control (world)
+  (first (aref (objects world) 6)))
+
 
 ;;;; Levels
 
@@ -664,7 +742,13 @@
                                                (-50.0 . -50.0)))))
     (add-object (make-instance 'player :cash 10) world)
     (add-object (make-instance 'homebase :lives 2 :pos (vec -50.0 -50.0)) world)
-    (add-object (make-instance 'tower-factory :kind 'blaster-tower :pos (vec -60.0 -85.0) :cost 5) world)
+    (add-object (make-instance 'tower-control) world)
+    (add-object (make-instance 'tower-factory
+                               :kind 'blaster-tower
+                               :pos (vec -60.0 -85.0)
+                               :buy-prices #(5 5 7 10 15 20 30)
+                               :sell-prices #(0 2 5 7 10 15 25))
+                world)
     (add-object
      (make-instance
       'wave
@@ -802,6 +886,13 @@
   (declare (ignore picked-object))
   (release-object mouse world))
 
+(defmethod left-button ((state (eql :down)) mouse selected-object (picked-object clickable-object) world)
+  (declare (ignore selected-object))
+  (select picked-object :obtain (pos mouse) world))
+
+(defmethod left-button ((state (eql :up)) mouse selected-object (picked-object clickable-object) world)
+  (declare (ignore selected-object))
+  (select picked-object :release (pos mouse) world))
 
 (defmethod glut:idle ((w game-window))
   (let ((now (glut:get :elapsed-time)))
