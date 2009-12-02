@@ -177,9 +177,15 @@
   ((collision-radius :initarg :collision-radius :accessor collision-radius)
    (pos :initarg :pos :accessor pos)))
 
-(defclass selectable-object ()
+(defclass pickable-object ()
   ((collision-radius :initarg :collision-radius :accessor collision-radius)
    (pos :initarg :pos :accessor pos)))
+
+(defclass draggable-object (pickable-object)
+  ())
+
+(defclass selectable-object (pickable-object)
+  ())
 
 (defgeneric update (object tick world))
 (defgeneric render (object))
@@ -389,8 +395,12 @@
 
 (defmethod select ((tower blaster-tower) op pos world)
   (declare (ignore op pos world))
-  ;; todo
-  )
+  (ecase op
+    (:obtain
+     (setf (draw-detection-circle-p tower) t))
+    (:release
+     (setf (draw-detection-circle-p tower) nil))
+    (:move)))
 
 (defclass projectile (collidable-object)
   ((vel :initarg :vel :accessor vel)))
@@ -444,7 +454,7 @@
   (incf (cash (player world)) (cash-reward enemy))
   (remove-object enemy world))
 
-(defclass tower-factory (selectable-object)
+(defclass tower-factory (draggable-object)
   ((cost :initarg :cost :accessor cost)
    (kind :initarg :kind :accessor kind)
    (prototype :accessor prototype)
@@ -708,7 +718,7 @@
    (lambda (object)
      (when (collides-p object mouse)
        (return-from pick-object object)))
-   world :order :hit-test :type 'selectable-object))
+   world :order :hit-test :type 'pickable-object))
 
 (defclass game-window (glut:window)
   ((world :initarg :world :accessor world)
@@ -751,18 +761,42 @@
     (vec-assign (pos (mouse w)) x (- y)))
   (select (selection (mouse w)) :move (pos (mouse w)) (world w)))
 
+(defgeneric left-button (state mouse selected-object picked-object world)
+  (:method (state mouse selected-object picked-object world)
+    (declare (ignore state mouse selected-object picked-object world))))
+
 (defmethod glut:mouse ((w game-window) button state x y)
   (glut:motion w x y)
   (case button
     (:left-button
      (let ((m (mouse w)))
-       (case state
-         (:down
-          (setf (selection m) (pick-object m (world w)))
-          (select (selection m) :obtain (pos m) (world w)))
-         (:up
-          (select (selection m) :release (pos m) (world w))
-          (setf (selection m) nil)))))))
+       (left-button state m (selection m) (pick-object m (world w)) (world w))))))
+
+(defun obtain-object (object mouse world)
+  (when (selection mouse)
+    (release-object mouse world))
+  (setf (selection mouse) object)
+  (select (selection mouse) :obtain (pos mouse) world))
+
+(defun release-object (mouse world)
+  (when (selection mouse)
+    (select (selection mouse) :release (pos mouse) world)
+    (setf (selection mouse) nil)))
+
+(defmethod left-button ((state (eql :down)) mouse (selected-object selectable-object) (picked-object null) world)
+  (release-object mouse world))
+
+(defmethod left-button ((state (eql :down)) mouse selected-object (picked-object selectable-object) world)
+  (declare (ignore selected-object))
+  (obtain-object picked-object mouse world))
+
+(defmethod left-button ((state (eql :down)) mouse selected-object (picked-object draggable-object) world)
+  (declare (ignore selected-object))
+  (obtain-object picked-object mouse world))
+
+(defmethod left-button ((state (eql :up)) mouse (selected-object draggable-object) picked-object world)
+  (declare (ignore picked-object))
+  (release-object mouse world))
 
 (defparameter *frames-per-second* 30)
 (defparameter *tick-duration* (floor 1000 *frames-per-second*))
