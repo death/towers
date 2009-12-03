@@ -52,6 +52,40 @@
               (incf x (* rx radial-factor))
               (incf y (* ry radial-factor)))))))
 
+(defun call-with-curve-multipliers (fn &optional (segments 20))
+  (funcall fn 1.0 0.0 0.0 0.0)
+  (loop with step = (/ 1.0 segments)
+        repeat (- segments 2)
+        for u = step then (+ u step)
+        for v = (- 1.0 u)
+        for am = (* 1.0 v v v)
+        for bm = (* 3.0 v v u)
+        for cm = (* 3.0 v u u)
+        for dm = (* 1.0 u u u)
+        do (funcall fn am bm cm dm))
+  (funcall fn 0.0 0.0 0.0 1.0))
+
+(define-compiler-macro draw-cubic-curve (&whole form ax ay bx by cx cy dx dy &optional (segments 20))
+  (if (integerp segments)
+      (alexandria:once-only (ax ay bx by cx cy dx dy)
+        (let ((instructions '()))
+          (call-with-curve-multipliers
+           (lambda (am bm cm dm)
+             (push
+              `(gl:vertex (+ (* ,am ,ax) (* ,bm ,bx) (* ,cm ,cx) (* ,dm ,dx))
+                          (+ (* ,am ,ay) (* ,bm ,by) (* ,cm ,cy) (* ,dm ,dy)))
+              instructions))
+           segments)
+          `(progn (nreverse ,@instructions))))
+      form))
+
+(defun draw-cubic-curve (ax ay bx by cx cy dx dy &optional (segments 20))
+  (call-with-curve-multipliers
+   (lambda (am bm cm dm)
+     (gl:vertex (+ (* am ax) (* bm bx) (* cm cx) (* dm dx))
+                (+ (* am ay) (* bm by) (* cm cy) (* dm dy))))
+   segments))
+
 (defun square (x)
   (* x x))
 
