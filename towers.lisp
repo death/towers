@@ -214,6 +214,86 @@
   (deg (atan (y vec) (x vec))))
 
 
+;;;; Wavefront objects
+
+(defclass wf-object ()
+  ((coordinates :initarg :coordinates :accessor coordinates)
+   (faces :initarg :faces :accessor faces)
+   (parts :initarg :parts :accessor parts)))
+
+(defun load-wf-object (filename)
+  (with-open-file (in filename :direction :input)
+    (let ((coordinates (make-array 0 :adjustable t :fill-pointer t :element-type 'single-float))
+          (faces (make-array 0 :adjustable t :fill-pointer t :element-type 'fixnum))
+          (parts (make-hash-table))
+          (part-start 0)
+          (part-end 0)
+          (part-name nil))
+      (flet ((sexp-stream (string)
+               (make-concatenated-stream
+                (make-string-input-stream "(")
+                (make-string-input-stream string)
+                (make-string-input-stream ")"))))
+        (loop for line = (read-line in nil nil)
+              while line do
+              (let ((line (string-trim '(#\Space #\Tab #\Return) line)))
+                (cond ((alexandria:emptyp line))
+                      ((alexandria:starts-with #\# line))
+                      (t (let ((sexp (read (sexp-stream line))))
+                           (case (car sexp)
+                             (v (dolist (x (cdr sexp))
+                                  (vector-push-extend x coordinates)))
+                             (f (dolist (x (cdr sexp))
+                                  (vector-push-extend (1- x) faces))
+                                (incf part-end))
+                             (o (cond ((null part-name)
+                                       (setf part-name (cadr sexp)))
+                                      (t
+                                       (setf (gethash part-name parts)
+                                             (list part-start part-end))
+                                       (setf part-name (cadr sexp))
+                                       (setf part-start part-end))))
+                             (g)
+                             (t (warn "Unexpected first element: ~S" (car sexp))))))))))
+      (when part-name
+        (setf (gethash part-name parts)
+              (list part-start part-end)))
+      (make-instance 'wf-object :coordinates coordinates :faces faces :parts parts))))
+
+(defun wf-part-names (wf-object)
+  (alexandria:hash-table-keys (parts wf-object)))
+
+(defun wf-draw (wf-object)
+  (gl:with-primitive :triangles
+    (let ((coords (coordinates wf-object))
+          (faces (faces wf-object)))
+      (loop for face across faces
+            do (gl:vertex (aref coords (+ 0 (* 3 face)))
+                          (- (aref coords (+ 2 (* 3 face))))
+                          (aref coords (+ 1 (* 3 face))))))))
+
+(defun wf-draw-part (part-name wf-object)
+  (gl:with-primitive :triangles
+    (let ((coords (coordinates wf-object))
+          (faces (faces wf-object)))
+      (destructuring-bind (start end)
+          (gethash part-name (parts wf-object))
+        (loop for i from (* 3 start) below (* end 3)
+              for face = (aref faces i)
+              do (gl:vertex (aref coords (+ 0 (* 3 face)))
+                            (- (aref coords (+ 2 (* 3 face))))
+                            (aref coords (+ 1 (* 3 face)))))))))
+
+(defparameter *wf-object-repository* (make-hash-table))
+
+(defun register-wf-object (name filename)
+  (setf (gethash name *wf-object-repository*) (load-wf-object filename)))
+
+(defun find-wf-object (name)
+  (or (gethash name *wf-object-repository*)
+      (error "Can't find Wavefront object ~S." name)))
+
+
 ;;;; Game object protocol
 
 (defclass collidable-object ()
@@ -459,12 +539,14 @@
       (gl:color 0 1 1)
       (draw-circle (detection-radius tower)))))
 
+(register-wf-object 'blaster-tower "c:/dev/prj/towers/data/blaster.obj")
+
 (defclass blaster-tower (tower shooting-tower-mixin)
   ((angle :initform 0.0 :accessor angle)
    (projectile-speed :initarg :projectile-speed :accessor projectile-speed))
   (:default-initargs
    :base-fire-rate 1
-    :collision-radius 8
+    :collision-radius 5
     :detection-radius 20
     :projectile-speed 2.0))
 
@@ -509,18 +591,18 @@
                             (max -10.0 (min diff 10.0)))))))
 
 (defmethod render ((tower blaster-tower))
-  (gl:with-pushed-matrix
-    (with-vec (x y (pos tower))
-      (gl:translate x y 0))
-    (gl:color 0 1 0)
-    (draw-circle 5)
-    (gl:rotate (angle tower) 0 0 1)
-    (draw-circle 3)
-    (gl:with-primitive :line-loop
-      (gl:vertex -1 0)
-      (gl:vertex 1 0)
-      (gl:vertex 1 8)
-      (gl:vertex -1 8))))
+  (let ((wf-object (find-wf-object 'blaster-tower)))
+    (gl:with-pushed-matrix
+      (with-vec (x y (pos tower))
+        (gl:translate x y 0))
+      (gl:color 0 1 0)
+      (gl:scale 1.5 1.5 1.0)
+      (gl:polygon-mode :front-and-back :line)
+      (wf-draw-part 'blaster wf-object)
+      (wf-draw-part 'inner-base wf-object)
+      (gl:rotate (angle tower) 0.0 0.0 1.0)
+      (wf-draw-part 'cannon wf-object)
+      (gl:polygon-mode :front-and-back :fill))))
 
 (defmethod select ((tower blaster-tower) op pos world)
   (declare (ignore pos))
@@ -557,7 +639,7 @@
   (:default-initargs :collision-radius 1))
 
 (defmethod projectile-initial-position ((tower blaster-tower))
-  (vec+= (vel-vec 7.0 (- (angle tower))) (pos tower)))
+  (vec+= (vel-vec 4.0 (- (angle tower))) (pos tower)))
 
 (defmethod projectile-initial-velocity ((tower blaster-tower))
   (vel-vec (projectile-speed tower) (- (angle tower))))
