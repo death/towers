@@ -698,7 +698,7 @@
     (render (new-tower factory)))
   (with-vec (x y (pos factory))
     (gl:color 1.0 1.0 1.0)
-    (display-text (- x 2.0) (- y 10.0) (aref (buy-prices factory) 0))))
+    (display-text (- x 0.5) (- y 10.0) (aref (buy-prices factory) 0))))
 
 (defmethod select ((factory tower-factory) op pos world)
   (ecase op
