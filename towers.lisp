@@ -545,7 +545,7 @@
   ((angle :initform 0.0 :accessor angle)
    (projectile-speed :initarg :projectile-speed :accessor projectile-speed))
   (:default-initargs
-   :base-fire-rate 1
+   :base-fire-rate 2
     :collision-radius 5
     :detection-radius 20
     :projectile-speed 2.0))
@@ -578,7 +578,7 @@
 (defun good-to-fire-p (enemy tower)
   (let ((aim-angle (angle tower))
         (target-angle (target-angle enemy tower)))
-    (< (abs (- aim-angle target-angle)) 3.0)))
+    (< (abs (- aim-angle target-angle)) 4.0)))
 
 (defun aim (tower enemy)
   (let* ((aim-angle (angle tower))
@@ -655,7 +655,7 @@
     (with-vec (x y (pos proj))
       (gl:translate x y 0))
     (gl:color 0 1 0)
-    (draw-circle 1)))
+    (draw-circle 0.6)))
 
 (defmethod projectile-hit ((proj blaster-projectile) enemies world)
   (dolist (enemy enemies)
@@ -905,25 +905,25 @@
         (loop repeat 5 collecting
               (make-instance 'sqrewy
                              :pos (vec 0.0 100.0)
-                             :speed 0.8
+                             :speed 0.4
                              :path path
-                             :hit-points 1
+                             :hit-points 5
                              :cash-reward 1)))
-  (wave :start-tick 500 :wait-ticks 20 :enemies
+  (wave :start-tick 500 :wait-ticks 50 :enemies
         (loop repeat 6 collecting
               (make-instance 'sqrewy
                              :pos (vec 0.0 100.0)
-                             :speed 1.0
+                             :speed 0.6
                              :path path
-                             :hit-points 2
+                             :hit-points 10
                              :cash-reward 3)))
-  (wave :start-tick 1000 :wait-ticks 30 :enemies
+  (wave :start-tick 1000 :wait-ticks 40 :enemies
         (loop repeat 7 collecting
               (make-instance 'sqrewy
                              :pos (vec 0.0 100.0)
-                             :speed 1.1
+                             :speed 0.7
                              :path path
-                             :hit-points 6
+                             :hit-points 15
                              :cash-reward 5)))
   (grid))
 
