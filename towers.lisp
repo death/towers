@@ -99,6 +99,8 @@
           (setf best x best-key key))))
     (values best best-key)))
 
+(defun cddddddr (cons) (cddddr (cddr cons)))
+
 
 ;;;; 2D vectors
 
@@ -344,6 +346,11 @@
 (defclass path ()
   ((vertices :initarg :vertices :accessor vertices)))
 
+(defmethod initialize-instance :after ((path path) &rest initargs &key spline &allow-other-keys)
+  (declare (ignore initargs))
+  (when spline
+    (setf (vertices path) (compile-path spline))))
+
 (defmethod update ((path path) tick world)
   (declare (ignore tick world)))
 
@@ -353,6 +360,19 @@
     (loop for v across (vertices path) do
           (with-vec (x y v)
             (gl:vertex x y)))))
+
+(defun compile-path (spline)
+  (coerce
+   (loop for (ax ay bx by cx cy dx dy) on spline by #'cddddddr
+         when (and ax ay bx by cx cy dx dy)
+         nconc (let ((vs '()))
+                 (call-with-curve-multipliers
+                  (lambda (am bm cm dm)
+                   (push (vec (+ (* am ax) (* bm bx) (* cm cx) (* dm dx))
+                              (+ (* am ay) (* bm by) (* cm cy) (* dm dy)))
+                         vs)))
+                 (nreverse vs)))
+   'vector))
 
 
 ;;;; Message
@@ -792,7 +812,7 @@
            world)))))
 
 (define-level level-1
-  (path :named path :vertices #((0.0 . 100.0) (0.0 . 0.0) (-50.0 . -50.0)))
+  (path :named path :spline '(0.0 100.0 10.0 10.0 -10.0 -10.0 -50.0 -50.0))
   (player :cash 10)
   (homebase :lives 2 :pos (vec -50.0 -50.0))
   (tower-control)
