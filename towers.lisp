@@ -474,20 +474,28 @@
 
 ;;;; Homebase
 
+(register-wf-object 'homebase "c:/dev/prj/towers/data/homebase.obj")
+
 (defclass homebase (collidable-object)
-  ((lives :initarg :lives :accessor lives))
+  ((lives :initarg :lives :accessor lives)
+   (angle :initform 0.0 :accessor angle))
   (:default-initargs :collision-radius 8))
 
 (defmethod update ((hb homebase) tick world)
-  (declare (ignore tick world)))
+  (declare (ignore tick world))
+  (incf (angle hb) 2))
 
 (defmethod render ((hb homebase))
   (gl:color 0.6 0.2 0.8)
   (gl:with-pushed-matrix
     (with-vec (x y (pos hb))
       (gl:translate x y 0)
-      (draw-circle 8)
-      (display-text (- x 1) (- y 1) (lives hb)))))
+      (gl:scale 1.5 1.5 1.0)
+      (gl:polygon-mode :front-and-back :line)
+      (gl:rotate (angle hb) 0.0 0.0 1.0)
+      (wf-draw (find-wf-object 'homebase))
+      (gl:polygon-mode :front-and-back :fill)
+      (display-text (- x 0.5) (- y 0.5) (lives hb)))))
 
 
 ;;;; Towers
