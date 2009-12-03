@@ -902,9 +902,9 @@
            world)))))
 
 (define-level level-1
+  (homebase :lives 2 :pos (vec -50.0 -50.0))
   (path :named path :spline '(0.0 100.0 10.0 10.0 -10.0 -10.0 -50.0 -50.0))
   (player :cash 10)
-  (homebase :lives 2 :pos (vec -50.0 -50.0))
   (tower-control)
   (tower-factory :kind 'blaster-tower :pos (vec -60.0 -85.0)
                  :buy-prices #(5 5 7 10 15 20 30)
