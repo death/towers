@@ -644,7 +644,7 @@
 
 (defclass blaster-projectile (projectile)
   ((damage :initarg :damage :accessor damage))
-  (:default-initargs :collision-radius 1))
+  (:default-initargs :collision-radius 0.5))
 
 (defmethod projectile-initial-position ((tower blaster-tower))
   (vec+= (vel-vec 4.0 (- (angle tower))) (pos tower)))
