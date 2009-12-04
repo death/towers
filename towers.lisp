@@ -725,7 +725,7 @@
    (next-pos-idx :initform 1 :accessor next-pos-idx)
    (hit-points :initarg :hit-points :accessor hit-points)
    (cash-reward :initarg :cash-reward :accessor cash-reward)
-   (vel :accessor vel)))
+   (vel :initform (vec 0.0 0.0) :accessor vel)))
 
 (defmethod update ((e enemy) tick world)
   (declare (ignore tick))
