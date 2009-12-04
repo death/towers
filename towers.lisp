@@ -1062,3 +1062,80 @@
 (defun game ()
   (glut:display-window
    (make-instance 'game-window :world (make-level 'level-1))))
+
+
+;;;; Spline editor
+
+(defclass spliner ()
+  ((points :initform '() :accessor points)))
+
+(defmethod update ((sp spliner) tick world)
+  (declare (ignore tick world)))
+
+(defmethod render ((sp spliner))
+  (gl:color 1.0 1.0 1.0)
+  (let ((spline (loop for p in (points sp)
+                      nconc (with-vec (x y (pos p)) (list x y)))))
+    (let ((path (compile-path spline)))
+      (when (not (alexandria:emptyp path))
+        (gl:with-primitive :line-strip
+          (loop for v across path do
+                (with-vec (x y v)
+                  (gl:vertex x y))))))))
+
+(defclass spline-point (draggable-object)
+  ()
+  (:default-initargs :collision-radius 2))
+
+(defmethod update ((sp spline-point) tick world)
+  (declare (ignore tick world)))
+
+(defmethod render ((sp spline-point))
+  (gl:color 1.0 1.0 1.0)
+  (gl:with-pushed-matrix
+    (with-vec (x y (pos sp))
+      (gl:translate x y 0.0)
+      (draw-circle 2))))
+
+(defmethod select ((sp spline-point) op pos world)
+  (declare (ignore world))
+  (ecase op
+    (:obtain)
+    (:release)
+    (:move (vec-assign (pos sp) (x pos) (y pos)))))
+
+(define-level spline-editor
+  (spliner)
+  (grid))
+
+(defclass spline-editor (game-window)
+  ((mouse :initform (make-instance 'mouse) :accessor mouse)))
+
+(defmethod glut:keyboard ((w spline-editor) key x y)
+  (let ((mouse (mouse w))
+        (spliner (block nil
+                   (map-objects (lambda (x) (return x))
+                                (world w) :type 'spliner))))
+    (multiple-value-bind (x y) (glu:un-project x y 0.0)
+      (vec-assign (pos (mouse w)) x (- y)))
+    (case key
+      (#\a
+       (let ((sp (make-instance 'spline-point :pos (copy-vec (pos mouse)))))
+         (alexandria:appendf (points spliner) (list sp))
+         (add-object sp (world w))))
+      (#\d
+       (alexandria:when-let (sp (pick-object (mouse w) (world w)))
+         (alexandria:deletef (points spliner) sp)
+         (remove-object sp (world w))))
+      (#\p
+       (format t "(")
+       (dolist (sp (points spliner))
+         (with-vec (x y (pos sp))
+           (format t " ~,3F ~,3F~%" x y)))
+       (format t ")~%")
+       (finish-output))
+      (t (call-next-method)))))
+
+(defun spline-editor ()
+  (glut:display-window
+   (make-instance 'spline-editor :world (make-level 'spline-editor))))
