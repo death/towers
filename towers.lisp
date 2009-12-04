@@ -673,7 +673,12 @@
 
 (defun enemy-kill (enemy world)
   (incf (cash (player world)) (cash-reward enemy))
-  (remove-object enemy world))
+  (remove-object enemy world)
+  (add-object (make-instance 'explosion
+                             :number-of-particles 100
+                             :color (explosion-color enemy)
+                             :center (pos enemy))
+              world))
 
 (defclass tower-factory (draggable-object)
   ((buy-prices :initarg :buy-prices :accessor buy-prices)
@@ -725,7 +730,8 @@
    (next-pos-idx :initform 1 :accessor next-pos-idx)
    (hit-points :initarg :hit-points :accessor hit-points)
    (cash-reward :initarg :cash-reward :accessor cash-reward)
-   (vel :initform (vec 0.0 0.0) :accessor vel)))
+   (vel :initform (vec 0.0 0.0) :accessor vel)
+   (explosion-color :initarg :explosion-color :accessor explosion-color)))
 
 (defmethod update ((e enemy) tick world)
   (declare (ignore tick))
@@ -766,7 +772,7 @@
 (defclass sqrewy (enemy)
   ((angle :initform 0 :accessor angle)
    (dir :initform '> :accessor dir))
-  (:default-initargs :collision-radius 2))
+  (:default-initargs :collision-radius 2 :explosion-color (list 0.0 0.5 0.5)))
 
 (defmethod update :after ((sq sqrewy) tick world)
   (declare (ignore tick world))
@@ -785,7 +791,7 @@
     (with-vec (x y (pos sq))
       (gl:translate x y 0))
     (gl:rotate (angle sq) 0 0 1)
-    (gl:color 0 0.5 0.5)
+    (apply #'gl:color (explosion-color sq))
     (gl:with-primitive :line-loop
       (gl:vertex -2 -2)
       (gl:vertex 2 -2)
@@ -814,6 +820,74 @@
 
 (defun release-an-enemy (wave world)
   (add-object (pop (enemies wave)) world))
+
+
+;;;; Explosions
+
+(defclass explosion ()
+  ((positions :accessor positions)
+   (velocities :accessor velocities)
+   (accelerations :accessor accelerations)
+   (angles :accessor angles)
+   (angles-mul :accessor angles-mul)
+   (energies :accessor energies)
+   (color :initarg :color :accessor color)
+   (center :initarg :center :accessor center)
+   (number-of-particles :initarg :number-of-particles :accessor number-of-particles)))
+
+(defmethod initialize-instance :after ((e explosion) &rest initargs &key number-of-particles center &allow-other-keys)
+  (declare (ignore initargs))
+  (let ((n number-of-particles))
+    (with-vec (cx cy center)
+      (with-slots (positions velocities accelerations energies angles angles-mul) e
+        (setf positions (make-array n))
+        (setf velocities (make-array n))
+        (setf accelerations (make-array n))
+        (setf energies (make-array n))
+        (setf angles (make-array n))
+        (setf angles-mul (make-array n))
+        (dotimes (i n)
+          (setf (aref positions i) (vec cx cy))
+          (let ((a (random 360.0))
+                (e (+ 50 (random 20)))
+                (v (random 1.0)))
+            (setf (aref velocities i) (vel-vec v a))
+            (setf (aref accelerations i) (vel-vec (random (/ v e)) (- 360.0 a)))
+            (setf (aref energies i) e))
+          (setf (aref angles i) (random 360.0))
+          (setf (aref angles-mul i) (/ (- (random 2.0) 1.0) 3.0)))))))
+
+(defmethod update ((e explosion) tick world)
+  (declare (ignore tick))
+  (with-slots (positions velocities accelerations energies angles angles-mul) e
+    (let ((n (number-of-particles e))
+          (dead 0))
+      (dotimes (i n)
+        (cond ((plusp (aref energies i))
+               (vec+= (aref positions i) (aref velocities i))
+               (vec+= (aref velocities i) (aref accelerations i))
+               (decf (aref energies i))
+               (incf (aref angles i) (* (aref angles-mul i) (aref energies i))))
+              (t
+               (incf dead))))
+      (when (= dead n)
+        (remove-object e world)))))
+
+(defmethod render ((e explosion))
+  (with-slots (positions angles energies) e
+    (let ((n (number-of-particles e)))
+      (destructuring-bind (r g b) (color e)
+        (dotimes (i n)
+          (when (plusp (aref energies i))
+            (gl:with-pushed-matrix
+              (with-vec (px py (aref positions i))
+                (gl:translate px py 0.0))
+              (gl:rotate (aref angles i) 0.0 0.0 1.0)
+              (gl:color r g b (/ (aref energies i) 70.0))
+              (gl:with-primitive :line-loop
+                (gl:vertex -1.0 0.0)
+                (gl:vertex 1.0 0.0)
+                (gl:vertex 0.0 1.0)))))))))
 
 
 ;;;; Game world
@@ -1001,7 +1075,9 @@
 (defmethod glut:display-window :before ((w game-window))
   (gl:clear-color 0 0 0 0)
   (gl:shade-model :flat)
-  (gl:disable :depth-test))
+  (gl:disable :depth-test)
+  (gl:enable :blend)
+  (gl:blend-func :src-alpha :one-minus-src-alpha))
 
 (defmethod glut:display ((w game-window))
   (gl:load-identity)
