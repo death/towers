@@ -935,6 +935,43 @@
                              :cash-reward 5)))
   (grid))
 
+(define-level level-2
+  (homebase :lives 5 :pos (vec -57.375 -49.375))
+  (path :named path :spline '(0.0 100.0 14.125 74.375 -44.625 69.125 -57.375
+                              39.625 -67.125 1.875 -6.125 23.625 34.625
+                              46.125 64.625 62.875 118.875 15.125 60.125
+                              -36.375 13.125 -61.875 -32.875 -26.125 -57.375 -49.375))
+  (player :cash 20)
+  (tower-control)
+  (tower-factory :kind 'blaster-tower :pos (vec -60.0 -85.0)
+                 :buy-prices #(5 5 7 10 15 20 30)
+                 :sell-prices #(0 2 5 7 10 15 25))
+  (wave :start-tick 100 :wait-ticks 50 :enemies
+        (loop repeat 10 collecting
+              (make-instance 'sqrewy
+                             :pos (vec 0.0 100.0)
+                             :speed 0.5
+                             :path path
+                             :hit-points 10
+                             :cash-reward 2)))
+  (wave :start-tick 500 :wait-ticks 40 :enemies
+        (loop repeat 5 collecting
+              (make-instance 'sqrewy
+                             :pos (vec 0.0 100.0)
+                             :speed 0.6
+                             :path path
+                             :hit-points 15
+                             :cash-reward 5)))
+  (wave :start-tick 1000 :wait-ticks 60 :enemies
+        (loop repeat 10 collecting
+              (make-instance 'sqrewy
+                             :pos (vec 0.0 100.0)
+                             :speed 0.8
+                             :path path
+                             :hit-points 30
+                             :cash-reward 10)))
+  (grid))
+
 
 ;;;; Game window
 
@@ -1061,7 +1098,7 @@
 
 (defun game ()
   (glut:display-window
-   (make-instance 'game-window :world (make-level 'level-1))))
+   (make-instance 'game-window :world (make-level 'level-2))))
 
 
 ;;;; Spline editor
