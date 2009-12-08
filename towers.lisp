@@ -361,6 +361,7 @@
 
 (defun sell (tower player world)
   (incf (cash player) (sell-price tower))
+  (setf (tower (tower-control world)) nil)
   (remove-object tower world))
 
 
