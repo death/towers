@@ -1,5 +1,5 @@
 (defpackage #:towers
-  (:use #:cl))
+  (:use #:cl #:alexandria))
 
 (in-package #:towers)
 
@@ -67,7 +67,7 @@
 
 (define-compiler-macro draw-cubic-curve (&whole form ax ay bx by cx cy dx dy &optional (segments 20))
   (if (integerp segments)
-      (alexandria:once-only (ax ay bx by cx cy dx dy)
+      (once-only (ax ay bx by cx cy dx dy)
         (let ((instructions '()))
           (call-with-curve-multipliers
            (lambda (am bm cm dm)
@@ -194,7 +194,7 @@
        (<= y (* (y v) r))))
 
 (defmacro with-vec ((x y vec &optional (update nil)) &body forms)
-  (alexandria:once-only (vec)
+  (once-only (vec)
     `(,(if update
            'symbol-macrolet
            'let)
@@ -237,8 +237,8 @@
         (loop for line = (read-line in nil nil)
               while line do
               (let ((line (string-trim '(#\Space #\Tab #\Return) line)))
-                (cond ((alexandria:emptyp line))
-                      ((alexandria:starts-with #\# line))
+                (cond ((emptyp line))
+                      ((starts-with #\# line))
                       (t (let ((sexp (read (sexp-stream line))))
                            (case (car sexp)
                              (v (dolist (x (cdr sexp))
@@ -261,7 +261,7 @@
       (make-instance 'wf-object :coordinates coordinates :faces faces :parts parts))))
 
 (defun wf-part-names (wf-object)
-  (alexandria:hash-table-keys (parts wf-object)))
+  (hash-table-keys (parts wf-object)))
 
 (defun wf-draw (wf-object)
   (gl:with-primitive :triangles
@@ -379,7 +379,7 @@
   (:default-initargs :tower nil :collision-radius 16 :pos (vec 62.0 -82.0)))
 
 (defmethod render ((control tower-control))
-  (alexandria:when-let (tower (tower control))
+  (when-let (tower (tower control))
     (gl:with-pushed-matrix
       (gl:color 0.2 0.5 1)
       (display-text 50.0 -75.0 (type-of tower))
@@ -390,7 +390,7 @@
 (defmethod select ((control tower-control) op pos world)
   (ecase op
     (:obtain
-     (alexandria:when-let (tower (tower control))
+     (when-let (tower (tower control))
        (with-vec (x y pos)
          (cond ((and (>= x 50.0) (>= y -86.0) (<= y -81.0))
                 (try-upgrade tower (player world) world))
@@ -936,12 +936,10 @@
     (t 0)))
 
 (defun remove-object (object world)
-  (alexandria:deletef
-   (aref (objects world) (object-list-index object))
-   object :count 1))
+  (deletef (aref (objects world) (object-list-index object)) object :count 1))
 
 (defun map-objects (function world &key order (type t))
-  (unless (alexandria:type= type 'nil)
+  (unless (type= type 'nil)
     (flet ((maybe-call-function (object)
              (when (typep object type)
                (funcall function object))))
@@ -1208,7 +1206,7 @@
   (let ((spline (loop for p in (points sp)
                       nconc (with-vec (x y (pos p)) (list x y)))))
     (let ((path (compile-path spline)))
-      (when (not (alexandria:emptyp path))
+      (when (not (emptyp path))
         (gl:with-primitive :line-strip
           (loop for v across path do
                 (with-vec (x y v)
@@ -1249,11 +1247,11 @@
     (case key
       (#\a
        (let ((sp (make-instance 'spline-point :pos (copy-vec (pos mouse)))))
-         (alexandria:appendf (points spliner) (list sp))
+         (appendf (points spliner) (list sp))
          (add-object sp (world w))))
       (#\d
-       (alexandria:when-let (sp (pick-object (mouse w) (world w)))
-         (alexandria:deletef (points spliner) sp)
+       (when-let (sp (pick-object (mouse w) (world w)))
+         (deletef (points spliner) sp)
          (remove-object sp (world w))))
       (#\p
        (format t "(")
