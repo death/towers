@@ -525,7 +525,8 @@
   ((last-shot-tick :initform nil :accessor last-shot-tick)
    (fire-rate :initarg :base-fire-rate :accessor base-fire-rate)
    (detection-radius :initarg :detection-radius :accessor detection-radius)
-   (draw-detection-circle :initarg :draw-detection-circle :accessor draw-detection-circle-p))
+   (draw-detection-circle :initarg :draw-detection-circle :accessor draw-detection-circle-p)
+   (detection-circle-color :initform :red :accessor detection-circle-color))
   (:default-initargs :draw-detection-circle nil))
 
 (defmethod fire-rate ((tower shooting-tower-mixin))
@@ -543,8 +544,12 @@
     (gl:with-pushed-matrix
       (with-vec (x y (pos tower))
         (gl:translate x y 0))
-      (gl:color 0 1 1)
-      (draw-circle (detection-radius tower)))))
+      (gl:color 0.0 1.0 1.0)
+      (draw-circle (detection-radius tower))
+      (ecase (detection-circle-color tower)
+        (:red (gl:color 1.0 0.0 0.0 0.2))
+        (:green (gl:color 0.0 1.0 0.0 0.2)))
+      (draw-circle (detection-radius tower) 30 t))))
 
 (register-wf-object 'blaster-tower "c:/dev/prj/towers/data/blaster.obj")
 
