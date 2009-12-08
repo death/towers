@@ -300,9 +300,8 @@
   ((collision-radius :initarg :collision-radius :accessor collision-radius)
    (pos :initarg :pos :accessor pos)))
 
-(defclass pickable-object ()
-  ((collision-radius :initarg :collision-radius :accessor collision-radius)
-   (pos :initarg :pos :accessor pos)))
+(defclass pickable-object (collidable-object)
+  ())
 
 (defclass draggable-object (pickable-object)
   ())
