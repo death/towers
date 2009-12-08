@@ -294,11 +294,31 @@
       (error "Can't find Wavefront object ~S." name)))
 
 
-;;;; Game object protocol
+;;;; Collision detection
 
 (defclass collidable-object ()
+  ())
+
+(defgeneric collide-p (a b))
+
+(defmethod collide-p :around (a b)
+  (or (eql a b)
+      (call-next-method)))
+
+(defclass circle-collidable-object ()
   ((collision-radius :initarg :collision-radius :accessor collision-radius)
    (pos :initarg :pos :accessor pos)))
+
+(defun close-enough-p (pa ra pb rb)
+  (< (vec-distance-sq pa pb) (square (+ ra rb))))
+
+(defmethod collide-p ((a circle-collidable-object)
+                      (b circle-collidable-object))
+  (close-enough-p (pos a) (collision-radius a)
+                  (pos b) (collision-radius b)))
+
+
+;;;; Game object protocol
 
 (defclass pickable-object (collidable-object)
   ())
@@ -312,34 +332,21 @@
 (defclass clickable-object (pickable-object)
   ())
 
-(defgeneric update (object tick world))
+(defgeneric update (object tick world)
+  (:method (object tick world)
+    (declare (ignore object tick world))))
+
 (defgeneric render (object))
-(defgeneric select (object op pos world))
 
-(defmethod select ((object null) op pos world)
-  (declare (ignore op pos world)))
-
-
-;;;; Collision detection
-
-(defun collides-p (a b)
-  (let ((pa (pos a))
-        (pb (pos b))
-        (ra (collision-radius a))
-        (rb (collision-radius b)))
-    (close-enough-p pa ra pb rb)))
-
-(defun close-enough-p (pa ra pb rb)
-  (< (vec-distance-sq pa pb) (square (+ ra rb))))
+(defgeneric select (object op pos world)
+  (:method ((object null) op pos world)
+    (declare (ignore op pos world))))
 
 
 ;;;; Player
 
 (defclass player ()
   ((cash :initarg :cash :accessor cash)))
-
-(defmethod update ((player player) tick world)
-  (declare (ignore tick world)))
 
 (defmethod render ((player player))
   (gl:with-pushed-matrix
@@ -367,14 +374,9 @@
 
 ;;;; Tower control
 
-(defclass tower-control (clickable-object)
-  ((tower :initarg :tower :accessor tower)
-   (text :initarg :text :accessor text))
-  (:default-initargs :tower nil :collision-radius 16 :pos (vec 62.0 -82.0)
-                     :text "blah"))
-
-(defmethod update ((control tower-control) tick world)
-  (declare (ignore tick world)))
+(defclass tower-control (clickable-object circle-collidable-object)
+  ((tower :initarg :tower :accessor tower))
+  (:default-initargs :tower nil :collision-radius 16 :pos (vec 62.0 -82.0)))
 
 (defmethod render ((control tower-control))
   (alexandria:when-let (tower (tower control))
@@ -383,8 +385,7 @@
       (display-text 50.0 -75.0 (type-of tower))
       (display-text 50.0 -80.0 (format nil "Level ~D" (level tower)))
       (display-text 50.0 -85.0 "Upgrade")
-      (display-text 50.0 -90.0 "Sell")
-      (display-text 50.0 -95.0 (text control)))))
+      (display-text 50.0 -90.0 "Sell"))))
 
 (defmethod select ((control tower-control) op pos world)
   (ecase op
@@ -404,9 +405,6 @@
 (defclass grid ()
   ())
 
-(defmethod update ((grid grid) tick world)
-  (declare (ignore tick world)))
-
 (defmethod render ((grid grid))
   (gl:with-pushed-matrix
     (gl:color 0.2 0.2 0.2)
@@ -423,16 +421,13 @@
 
 ;;;; Path
 
-(defclass path ()
+(defclass path (collidable-object)
   ((vertices :initarg :vertices :accessor vertices)))
 
 (defmethod initialize-instance :after ((path path) &rest initargs &key spline &allow-other-keys)
   (declare (ignore initargs))
   (when spline
     (setf (vertices path) (compile-path spline))))
-
-(defmethod update ((path path) tick world)
-  (declare (ignore tick world)))
 
 (defmethod render ((path path))
   (gl:color 0 0 0.6)
@@ -454,12 +449,24 @@
                  (nreverse vs)))
    'vector))
 
-(defun collides-with-path-p (collidable-object path)
-  (let ((pos (pos collidable-object))
-        (r (collision-radius collidable-object)))
-    (some (lambda (v)
-            (close-enough-p pos r v 5))
-          (vertices path))))
+(defparameter *path-collision-radius* 5)
+
+(defmethod collide-p ((a path) (b path))
+  (some (lambda (va)
+          (some (lambda (vb)
+                  (close-enough-p va *path-collision-radius*
+                                  vb *path-collision-radius*))
+                (vertices b)))
+        (vertices a)))
+
+(defmethod collide-p ((a path) (b circle-collidable-object))
+  (collide-p b a))
+
+(defmethod collide-p ((a circle-collidable-object) (b path))
+  (some (lambda (v)
+          (close-enough-p (pos a) (collision-radius a)
+                          v *path-collision-radius*))
+        (vertices b)))
 
 
 ;;;; Message
@@ -468,9 +475,6 @@
   ((pos :initarg :pos :accessor pos)
    (color :initarg :color :accessor color)
    (text :initarg :text :accessor text)))
-
-(defmethod update ((m message) tick world)
-  (declare (ignore tick world)))
 
 (defmethod render ((m message))
   (gl:with-pushed-matrix
@@ -483,7 +487,7 @@
 
 (register-wf-object 'homebase "c:/dev/prj/towers/data/homebase.obj")
 
-(defclass homebase (collidable-object)
+(defclass homebase (circle-collidable-object)
   ((lives :initarg :lives :accessor lives)
    (angle :initform 0.0 :accessor angle))
   (:default-initargs :collision-radius 8))
@@ -507,7 +511,7 @@
 
 ;;;; Towers
 
-(defclass tower (selectable-object)
+(defclass tower (selectable-object circle-collidable-object)
   ((level :initarg :level :accessor level)
    (factory :initarg :factory :accessor tower-factory))
   (:default-initargs :level 0))
@@ -635,7 +639,7 @@
      (setf (draw-detection-circle-p tower) nil))
     (:move)))
 
-(defclass projectile (collidable-object)
+(defclass projectile (circle-collidable-object)
   ((vel :initarg :vel :accessor vel)))
 
 (defgeneric projectile-hit (projectile enemies world))
@@ -648,7 +652,7 @@
     (return-from update))
   (let ((enemies-hit '()))
     (map-objects (lambda (enemy)
-                   (when (collides-p proj enemy)
+                   (when (collide-p proj enemy)
                      (push enemy enemies-hit)))
                  world :order :hit-test :type 'enemy)
     (when enemies-hit
@@ -692,7 +696,7 @@
                              :center (pos enemy))
               world))
 
-(defclass tower-factory (draggable-object)
+(defclass tower-factory (draggable-object circle-collidable-object)
   ((buy-prices :initarg :buy-prices :accessor buy-prices)
    (sell-prices :initarg :sell-prices :accessor sell-prices)
    (kind :initarg :kind :accessor kind)
@@ -706,9 +710,6 @@
   (setf (collision-radius factory)
         (collision-radius (prototype factory))))
 
-(defmethod update ((factory tower-factory) tick world)
-  (declare (ignore tick world)))
-
 (defmethod render ((factory tower-factory))
   (render (prototype factory))
   (when (new-tower factory)
@@ -721,13 +722,9 @@
   (with-slots (new-tower) factory
     (flet ((can-place-here-p ()
              (map-objects (lambda (object)
-                            (when (if (typep object 'path)
-                                      (collides-with-path-p new-tower object)
-                                      (collides-p new-tower object))
+                            (when (collide-p new-tower object)
                               (return-from can-place-here-p nil)))
-                          world
-                          :order :hit-test
-                          :type '(or path collidable-object))
+                          world :order :hit-test :type 'collidable-object)
              t))
       (ecase op
         (:obtain
@@ -746,12 +743,11 @@
            (vec-assign (pos new-tower) (x pos) (y pos))
            (setf (detection-circle-color new-tower)
                  (if (can-place-here-p) :green :red))))))))
-         
                              
 
 ;;;; Enemies
 
-(defclass enemy (collidable-object)
+(defclass enemy (circle-collidable-object)
   ((spd :initarg :speed :accessor spd)
    (path :initarg :path :accessor path)
    (next-pos-idx :initform 1 :accessor next-pos-idx)
@@ -764,7 +760,7 @@
   (declare (ignore tick))
   ;; Check collision with homebase
   (map-objects (lambda (hb)
-                 (when (collides-p e hb)
+                 (when (collide-p e hb)
                    (enemy-suicide e world)
                    (when (= (decf (lives hb)) 0)
                      (game-over world))
@@ -1076,16 +1072,14 @@
 
 ;;;; Game window
 
-(defclass mouse ()
-  ((pos :initform (vec 0.0 0.0) :accessor pos)
-   (selection :initform nil :accessor selection)))
-
-(defmethod collision-radius ((m mouse)) 2)
+(defclass mouse (circle-collidable-object)
+  ((selection :initform nil :accessor selection))
+  (:default-initargs :pos (vec 0.0 0.0) :collision-radius 2))
 
 (defun pick-object (mouse world)
   (map-objects
    (lambda (object)
-     (when (collides-p object mouse)
+     (when (collide-p object mouse)
        (return-from pick-object object)))
    world :order :hit-test :type 'pickable-object))
 
@@ -1209,9 +1203,6 @@
 (defclass spliner ()
   ((points :initform '() :accessor points)))
 
-(defmethod update ((sp spliner) tick world)
-  (declare (ignore tick world)))
-
 (defmethod render ((sp spliner))
   (gl:color 1.0 1.0 1.0)
   (let ((spline (loop for p in (points sp)
@@ -1223,12 +1214,9 @@
                 (with-vec (x y v)
                   (gl:vertex x y))))))))
 
-(defclass spline-point (draggable-object)
+(defclass spline-point (draggable-object circle-collidable-object)
   ()
   (:default-initargs :collision-radius 2))
-
-(defmethod update ((sp spline-point) tick world)
-  (declare (ignore tick world)))
 
 (defmethod render ((sp spline-point))
   (gl:color 1.0 1.0 1.0)
