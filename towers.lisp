@@ -453,6 +453,13 @@
                  (nreverse vs)))
    'vector))
 
+(defun collides-with-path-p (collidable-object path)
+  (let ((pos (pos collidable-object))
+        (r (collision-radius collidable-object)))
+    (some (lambda (v)
+            (close-enough-p pos r v 5))
+          (vertices path))))
+
 
 ;;;; Message
 
@@ -710,20 +717,35 @@
     (display-text (- x 0.5) (- y 10.0) (aref (buy-prices factory) 0))))
 
 (defmethod select ((factory tower-factory) op pos world)
-  (ecase op
-    (:obtain
-     (setf (new-tower factory)
-           (make-instance (kind factory)
-                          :pos (copy-vec pos)
-                          :draw-detection-circle t
-                          :factory factory)))
-    (:release
-     (try-buy (new-tower factory) (player world) world)
-     (setf (draw-detection-circle-p (new-tower factory)) nil)
-     (setf (new-tower factory) nil))
-    (:move
-     (alexandria:when-let (new (new-tower factory))
-       (vec-assign (pos new) (x pos) (y pos))))))
+  (with-slots (new-tower) factory
+    (flet ((can-place-here-p ()
+             (map-objects (lambda (object)
+                            (when (if (typep object 'path)
+                                      (collides-with-path-p new-tower object)
+                                      (collides-p new-tower object))
+                              (return-from can-place-here-p nil)))
+                          world
+                          :order :hit-test
+                          :type '(or path collidable-object))
+             t))
+      (ecase op
+        (:obtain
+         (setf new-tower
+               (make-instance (kind factory)
+                              :pos (copy-vec pos)
+                              :draw-detection-circle t
+                              :factory factory)))
+        (:release
+         (when (can-place-here-p)
+           (try-buy new-tower (player world) world)
+           (setf (draw-detection-circle-p new-tower) nil))
+         (setf new-tower nil))
+        (:move
+         (when new-tower
+           (vec-assign (pos new-tower) (x pos) (y pos))
+           (setf (detection-circle-color new-tower)
+                 (if (can-place-here-p) :green :red))))))))
+         
                              
 
 ;;;; Enemies
