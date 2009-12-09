@@ -449,7 +449,7 @@
                  (nreverse vs)))
    'vector))
 
-(defparameter *path-collision-radius* 5)
+(defparameter *path-collision-radius* 3)
 
 (defmethod collide-p ((a path) (b path))
   (some (lambda (va)
