@@ -34,7 +34,7 @@
 
 (defun draw-circle (radius &optional (resolution 30) (filledp nil))
   ;; http://github.com/sykopomp/until-it-dies/blob/master/src/primitives.lisp
-  ;; Stolen implementation and modified it a bit
+  ;; Stole implementation and modified it a bit
   (let* ((theta (* 2.0 (/ single-pi resolution)))
          (tangential-factor (tan theta))
          (radial-factor (- 1.0 (cos theta))))
