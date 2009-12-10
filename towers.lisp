@@ -1003,7 +1003,7 @@
   (tower-control)
   (tower-factory :kind 'blaster-tower :pos (vec -60.0 -85.0)
                  :buy-prices #(5 5 7 10 15 20 30)
-                 :sell-prices #(0 2 5 7 10 15 25))
+                 :sell-prices #(0 2 5 7 10 15 25 35))
   (wave :start-tick 100 :wait-ticks 50 :enemies
         (loop repeat 5 collecting
               (make-instance 'sqrewy
@@ -1040,7 +1040,7 @@
   (tower-control)
   (tower-factory :kind 'blaster-tower :pos (vec -60.0 -85.0)
                  :buy-prices #(5 5 7 10 15 20 30)
-                 :sell-prices #(0 2 5 7 10 15 25))
+                 :sell-prices #(0 2 5 7 10 15 25 35))
   (wave :start-tick 100 :wait-ticks 50 :enemies
         (loop repeat 10 collecting
               (make-instance 'sqrewy
