@@ -1,0 +1,6 @@
+Towers - a silly geoDefense clone wannabe
+
+Prerequisites:
+  alexandria
+  asdf
+  cl-opengl
