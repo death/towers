@@ -693,12 +693,12 @@
 
 (defun enemy-kill (enemy world)
   (incf (cash (player world)) (cash-reward enemy))
-  (remove-object enemy world)
   (add-object (make-instance 'explosion
                              :number-of-particles 100
                              :color (explosion-color enemy)
                              :center (pos enemy))
-              world))
+              world)
+  (enemy-die enemy world))
 
 (defclass tower-factory (draggable-object circle-collidable-object)
   ((buy-prices :initarg :buy-prices :accessor buy-prices)
@@ -765,7 +765,7 @@
   ;; Check collision with homebase
   (map-objects (lambda (hb)
                  (when (collide-p e hb)
-                   (enemy-suicide e world)
+                   (enemy-die e world)
                    (when (= (decf (lives hb)) 0)
                      (game-over world))
                    (return-from update)))
@@ -779,13 +779,13 @@
       (when (= (next-pos-idx e) (length vertices))
         ;; This shouldn't happen, as we're supposed to crash into
         ;; homebase before reaching the endpoint
-        (enemy-suicide e world)
+        (enemy-die e world)
         (return-from update))
       (setf next-pos (aref vertices (next-pos-idx e))))
     (setf (vel e) (vel-vec (spd e) (vec- next-pos pos)))
     (vec+= pos (vel e))))
 
-(defun enemy-suicide (enemy world)
+(defun enemy-die (enemy world)
   (remove-object enemy world))
 
 (defun game-over (world)
