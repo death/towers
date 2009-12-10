@@ -1190,7 +1190,7 @@
   (gl:with-pushed-matrix
     (gl:load-identity)
     (gl:raster-pos x y)
-    (glut:bitmap-string (cffi:make-pointer 3) object)))
+    (glut:bitmap-string glut:+bitmap-8-by-13+ object)))
 
 
 ;;;; Game
