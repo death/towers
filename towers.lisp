@@ -385,7 +385,7 @@
 (defmethod render ((control tower-control))
   (when-let (tower (tower control))
     (gl:with-pushed-matrix
-      (gl:color 0.2 0.5 1)
+      (gl:color 0.2 0.5 1.0)
       (display-text 50.0 -75.0 (type-of tower))
       (display-text 50.0 -80.0 (format nil "Level ~D" (level tower)))
       (display-text 50.0 -85.0 "Upgrade")
@@ -412,15 +412,15 @@
 (defmethod render ((grid grid))
   (gl:with-pushed-matrix
     (gl:color 0.2 0.2 0.2)
-    (gl:translate -100 100 0)
+    (gl:translate -100.0 100.0 0.0)
     (gl:scale 1 -1 1)
     (gl:with-primitive :lines
       (dotimes (y 18)
-        (gl:vertex 0 (* y 10))
-        (gl:vertex 200 (* y 10)))
+        (gl:vertex 0.0 (* y 10.0))
+        (gl:vertex 200.0 (* y 10.0)))
       (dotimes (x 20)
-        (gl:vertex (* x 10) 0)
-        (gl:vertex (* x 10) 170)))))
+        (gl:vertex (* x 10.0) 0.0)
+        (gl:vertex (* x 10.0) 170.0)))))
 
 
 ;;;; Path
@@ -434,7 +434,7 @@
     (setf (vertices path) (compile-path spline))))
 
 (defmethod render ((path path))
-  (gl:color 0 0 0.6)
+  (gl:color 0.0 0.0 0.6)
   (gl:with-primitive :line-strip
     (loop for v across (vertices path) do
           (with-vec (x y v)
@@ -504,7 +504,7 @@
   (gl:color 0.6 0.2 0.8)
   (gl:with-pushed-matrix
     (with-vec (x y (pos hb))
-      (gl:translate x y 0)
+      (gl:translate x y 0.0)
       (gl:scale 1.5 1.5 1.0)
       (gl:polygon-mode :front-and-back :line)
       (gl:rotate (angle hb) 0.0 0.0 1.0)
@@ -559,7 +559,7 @@
   (when (draw-detection-circle-p tower)
     (gl:with-pushed-matrix
       (with-vec (x y (pos tower))
-        (gl:translate x y 0))
+        (gl:translate x y 0.0))
       (gl:color 0.0 1.0 1.0)
       (draw-circle (detection-radius tower))
       (ecase (detection-circle-color tower)
@@ -622,8 +622,8 @@
   (let ((wf-object (find-wf-object 'blaster-tower)))
     (gl:with-pushed-matrix
       (with-vec (x y (pos tower))
-        (gl:translate x y 0))
-      (gl:color 0 1 0)
+        (gl:translate x y 0.0))
+      (gl:color 0.0 1.0 0.0)
       (gl:scale 1.5 1.5 1.0)
       (gl:polygon-mode :front-and-back :line)
       (wf-draw-part 'blaster wf-object)
@@ -681,8 +681,8 @@
 (defmethod render ((proj blaster-projectile))
   (gl:with-pushed-matrix
     (with-vec (x y (pos proj))
-      (gl:translate x y 0))
-    (gl:color 0 1 0)
+      (gl:translate x y 0.0))
+    (gl:color 0.0 1.0 0.0)
     (draw-circle 0.6)))
 
 (defmethod projectile-hit ((proj blaster-projectile) enemies world)
@@ -816,14 +816,14 @@
 (defmethod render ((sq sqrewy))
   (gl:with-pushed-matrix
     (with-vec (x y (pos sq))
-      (gl:translate x y 0))
+      (gl:translate x y 0.0))
     (gl:rotate (angle sq) 0 0 1)
     (apply #'gl:color (explosion-color sq))
     (gl:with-primitive :line-loop
-      (gl:vertex -2 -2)
-      (gl:vertex 2 -2)
-      (gl:vertex 2 2)
-      (gl:vertex -2 2))))
+      (gl:vertex -2.0 -2.0)
+      (gl:vertex +2.0 -2.0)
+      (gl:vertex +2.0 +2.0)
+      (gl:vertex -2.0 +2.0))))
 
 
 ;;;; Waves
@@ -913,8 +913,8 @@
               (gl:color r g b (/ (aref energies i) 70.0))
               (gl:with-primitive :line-loop
                 (gl:vertex -1.0 0.0)
-                (gl:vertex 1.0 0.0)
-                (gl:vertex 0.0 1.0)))))))))
+                (gl:vertex +1.0 0.0)
+                (gl:vertex  0.0 1.0)))))))))
 
 
 ;;;; Game world
@@ -964,8 +964,8 @@
    (lambda (object)
      (gl:with-pushed-matrix
        (with-vec (x y (pos object))
-         (gl:translate x y 0))
-       (gl:color 1 0 0)
+         (gl:translate x y 0.0))
+       (gl:color 1.0 0.0 0.0)
        (draw-circle (collision-radius object))))
    w :order :render :type *draw-collision-circle-for-type*))
 
@@ -1106,7 +1106,7 @@
   (gl:load-identity)
   (gl:clear-color 0 0 0 0)
   (gl:clear :color-buffer)
-  (gl:translate .375 .375 0)
+  (gl:translate .375 .375 0.0)
   (render (world w))
   (glut:swap-buffers))
 
