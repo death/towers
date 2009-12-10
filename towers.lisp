@@ -10,6 +10,10 @@
 (defparameter *tick-duration* (floor 1000 *frames-per-second*))
 (defparameter *draw-collision-circle-for-type* 'nil)
 
+(defparameter *data-directory*
+  (merge-pathnames (make-pathname :directory '(:relative "data"))
+                   (asdf:component-pathname (asdf:find-system "towers"))))
+
 
 ;;;; Utilities
 
@@ -222,7 +226,7 @@
    (parts :initarg :parts :accessor parts)))
 
 (defun load-wf-object (filename)
-  (with-open-file (in filename :direction :input)
+  (with-open-file (in (merge-pathnames filename *data-directory*) :direction :input)
     (let ((coordinates (make-array 0 :adjustable t :fill-pointer t :element-type 'single-float))
           (faces (make-array 0 :adjustable t :fill-pointer t :element-type 'fixnum))
           (parts (make-hash-table))
@@ -485,7 +489,7 @@
 
 ;;;; Homebase
 
-(register-wf-object 'homebase "c:/dev/prj/towers/data/homebase.obj")
+(register-wf-object 'homebase "homebase.obj")
 
 (defclass homebase (circle-collidable-object)
   ((lives :initarg :lives :accessor lives)
@@ -563,7 +567,7 @@
         (:green (gl:color 0.0 1.0 0.0 0.2)))
       (draw-circle (detection-radius tower) 30 t))))
 
-(register-wf-object 'blaster-tower "c:/dev/prj/towers/data/blaster.obj")
+(register-wf-object 'blaster-tower "blaster.obj")
 
 (defclass blaster-tower (tower shooting-tower-mixin)
   ((angle :initform 0.0 :accessor angle)
