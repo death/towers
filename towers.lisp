@@ -390,23 +390,32 @@
          (loop for list across (objects world) do
                (mapc #'maybe-call-function list)))))))
 
+(defmacro do-objects ((object-var world &key (order :hit-test) (type t) collecting) &body forms)
+  (if collecting
+      (with-gensyms (collection)
+        `(let ((,collection '()))
+           (flet ((collect (x) (push x ,collection)))
+             (block nil
+               (map-objects (lambda (,object-var) ,@forms) ,world :order ,order :type ,type)))
+           ,collection))
+      `(block nil
+         (map-objects (lambda (,object-var) ,@forms) ,world :order ,order :type ,type))))
+
 (defmethod update ((w world) tick world)
   (declare (ignore world))
-  (map-objects (lambda (object)
-                 (update object tick w))
-               w :order :update)
+  (do-objects (object w :order :update)
+    (update object tick w))
   (expunge-objects w))
 
 (defmethod render ((w world))
-  (map-objects (lambda (object)
-                 (render object)
-                 (when (typep object *draw-collision-circle-for-type*)
-                   (gl:with-pushed-matrix
-                     (with-vec (x y (pos object))
-                       (gl:translate x y 0.0))
-                     (gl:color 1.0 0.0 0.0)
-                     (draw-circle (collision-radius object)))))
-               w :order :render))
+  (do-objects (object w :order :render)
+    (render object)
+    (when (typep object *draw-collision-circle-for-type*)
+      (gl:with-pushed-matrix
+        (with-vec (x y (pos object))
+          (gl:translate x y 0.0))
+        (gl:color 1.0 0.0 0.0)
+        (draw-circle (collision-radius object))))))
 
 (defun player (world)
   (first (aref (objects world) 5)))
@@ -654,13 +663,10 @@
       (aim tower (best-element enemies :key (lambda (enemy) (target-angle enemy tower)))))))
 
 (defun detect-enemies (tower world)
-  (let ((enemies '()))
-    (map-objects (lambda (enemy)
-                   (when (close-enough-p (pos enemy) (collision-radius enemy)
-                                         (pos tower) (detection-radius tower))
-                     (push enemy enemies)))
-                 world :type 'enemy)
-    enemies))
+  (do-objects (enemy world :type 'enemy :collecting t)
+    (when (close-enough-p (pos enemy) (collision-radius enemy)
+                          (pos tower) (detection-radius tower))
+      (collect enemy))))
 
 (defun target-angle (enemy tower)
   (let ((pe (pos enemy))
@@ -749,12 +755,11 @@
 
 (defmethod maybe-projectile-hit ((proj blaster-projectile) world)
   (let ((hit nil))
-    (map-objects (lambda (enemy)
-                   (when (collide-p proj enemy)
-                     (setf hit t)
-                     (when (<= (decf (hit-points enemy) (damage proj)) 0)
-                       (enemy-kill enemy world))))
-                 world :type 'enemy)
+    (do-objects (enemy world :type 'enemy)
+      (when (collide-p proj enemy)
+        (setf hit t)
+        (when (<= (decf (hit-points enemy) (damage proj)) 0)
+          (enemy-kill enemy world))))
     (when hit
       (remove-object proj world))))
 
@@ -792,10 +797,9 @@
 (defmethod select ((factory tower-factory) op pos world)
   (with-slots (new-tower) factory
     (flet ((can-place-here-p ()
-             (map-objects (lambda (object)
-                            (when (collide-p new-tower object)
-                              (return-from can-place-here-p nil)))
-                          world :type 'collidable-object)
+             (do-objects (object world :type 'collidable-object)
+               (when (collide-p new-tower object)
+                 (return-from can-place-here-p nil)))
              t))
       (ecase op
         (:obtain
@@ -830,13 +834,12 @@
 (defmethod update ((e enemy) tick world)
   (declare (ignore tick))
   ;; Check collision with homebase
-  (map-objects (lambda (hb)
-                 (when (collide-p e hb)
-                   (enemy-die e world)
-                   (when (= (decf (lives hb)) 0)
-                     (game-over world))
-                   (return-from update)))
-               world :type 'homebase)
+  (do-objects (hb world :type 'homebase)
+    (when (collide-p e hb)
+      (enemy-die e world)
+      (when (= (decf (lives hb)) 0)
+        (game-over world))
+      (return-from update)))
   ;; Compute position and velocity
   (let* ((pos (pos e))
          (vertices (vertices (path e)))
@@ -1087,11 +1090,9 @@
   (:default-initargs :pos (vec 0.0 0.0) :collision-radius 2))
 
 (defun pick-object (mouse world)
-  (map-objects
-   (lambda (object)
-     (when (collide-p object mouse)
-       (return-from pick-object object)))
-   world :type 'pickable-object))
+  (do-objects (object world :type 'pickable-object)
+    (when (collide-p object mouse)
+      (return-from pick-object object))))
 
 (defclass game-window (glut:window)
   ((world :initarg :world :accessor world)
@@ -1251,9 +1252,7 @@
 
 (defmethod glut:keyboard ((w spline-editor) key x y)
   (let ((mouse (mouse w))
-        (spliner (block nil
-                   (map-objects (lambda (x) (return x))
-                                (world w) :type 'spliner))))
+        (spliner (do-objects (x (world w) :type 'spliner) (return x))))
     (multiple-value-bind (x y) (glu:un-project x y 0.0)
       (vec-assign (pos (mouse w)) x (- y)))
     (case key
