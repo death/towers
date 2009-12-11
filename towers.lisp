@@ -382,7 +382,7 @@
              object :count 1))
   (setf (objects-to-delete world) '()))
 
-(defun map-objects (function &key (world *world*) (order :hit-test) (type t))
+(defun map-objects (function world order type)
   (unless (type= type 'nil)
     (flet ((maybe-call-function (object)
              (when (and (typep object type)
@@ -399,10 +399,10 @@
         `(let ((,collection '()))
            (flet ((collect (x) (push x ,collection)))
              (block nil
-               (map-objects (lambda (,object-var) ,@forms) :world ,world :order ,order :type ,type)))
+               (map-objects (lambda (,object-var) ,@forms) ,world ,order ,type)))
            ,collection))
       `(block nil
-         (map-objects (lambda (,object-var) ,@forms) :world ,world :order ,order :type ,type))))
+         (map-objects (lambda (,object-var) ,@forms) ,world ,order ,type))))
 
 (defmethod update ((w world))
   (let ((*world* w))
