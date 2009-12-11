@@ -638,8 +638,8 @@
       (gl:color 0.2 0.5 1.0)
       (display-text 50.0 -75.0 (type-of tower))
       (display-text 50.0 -80.0 (format nil "Level ~D" (level tower)))
-      (display-text 50.0 -85.0 "Upgrade")
-      (display-text 50.0 -90.0 "Sell"))))
+      (display-text 50.0 -85.0 (format nil "Upgrade (~D)" (buy-price tower)))
+      (display-text 50.0 -90.0 (format nil "Sell (~D)" (sell-price tower))))))
 
 (defmethod select ((control tower-control) op pos)
   (ecase op
