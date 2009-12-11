@@ -369,7 +369,7 @@
 (defclass world ()
   ((objects-to-delete :initform '() :accessor objects-to-delete)
    (objects :initform (make-array 7 :initial-element '()) :accessor objects)
-   (dim :initform (vec 100.0 100.0) :accessor dim)))
+   (tick :initform nil :accessor tick)))
 
 (defun make-world ()
   (make-instance 'world))
@@ -419,7 +419,8 @@
          (map-objects (lambda (,object-var) ,@forms) ,world ,order ,type))))
 
 (defmethod update ((w world))
-  (let ((*world* w))
+  (let ((*world* w)
+        (*tick* (tick w)))
     (do-objects (object :order :update)
       (update object))
     (expunge-objects)))
@@ -454,14 +455,36 @@
       (return-from pick-object object))))
 
 (defclass game-window (glut:window)
-  ((world :initarg :world :accessor world)
+  ((world :accessor world)
+   (world-generator :initarg :world-generator :accessor world-generator)
+   (world-index :initform 0 :accessor world-index)
    (time-to-next-tick :initform nil :accessor time-to-next-tick)
-   (tick :initform nil :accessor tick)
    (mouse :initform (make-instance 'mouse) :accessor mouse))
   (:default-initargs
+   :name 'towers
    :width 800 :height 800
    :title "Towers"
    :mode '(:double :rgb)))
+
+(defmethod initialize-instance :after ((w game-window) &rest initargs)
+  (declare (ignore initargs))
+  (generate-world w))
+
+(defun find-game-window ()
+  (glut:find-window 'towers))
+
+(defun next-world (&optional (w (find-game-window)))
+  (incf (world-index w))
+  (generate-world w))
+
+(defun generate-world (&optional (w (find-game-window)))
+  (setf (world w) (funcall (world-generator w) (world-index w))))
+
+(defmethod tick ((w game-window))
+  (tick (world w)))
+
+(defmethod (setf tick) (new-value (w game-window))
+  (setf (tick (world w)) new-value))
 
 (defmethod glut:display-window :before ((w game-window))
   (gl:clear-color 0 0 0 0)
@@ -551,8 +574,7 @@
     (when (>= now (time-to-next-tick w))
       (incf (tick w))
       (setf (time-to-next-tick w) (+ now *tick-duration*))
-      (let ((*tick* (tick w)))
-        (update (world w)))
+      (update (world w))
       (glut:post-redisplay))))
 
 (defun display-text (x y object)
@@ -568,7 +590,12 @@
 
 (defun game ()
   (glut:display-window
-   (make-instance 'game-window :world (make-level 'level-2))))
+   (make-instance
+    'game-window
+    :world-generator 
+    (let ((levels #(level-1 level-2)))
+      (lambda (index)
+        (make-level (aref levels (mod index (length levels)))))))))
 
 
 ;;;; Player
@@ -1026,14 +1053,30 @@
     (vec+= pos (vel e))))
 
 (defun enemy-die (enemy)
-  (remove-object enemy))
+  (remove-object enemy)
+  (unless (got-more-enemies-p)
+    (win-level)))
+
+(defun got-more-enemies-p ()
+  (do-objects (object :type '(or enemy wave))
+    (declare (ignore object))
+    (return-from got-more-enemies-p t)))
+
+(defun win-level ()
+  (add-object
+   (make-instance 'message
+                  :pos (vec -8.0 0.0)
+                  :color '(0.0 1.0 0.0)
+                  :text "GOOD JOB"
+                  :action #'next-world)))
 
 (defun game-over ()
   (add-object
    (make-instance 'message
-                  :pos (vec -14.0 0.0)
-                  :color '(1 0 0)
-                  :text "GAME OVER")))
+                  :pos (vec -8.0 0.0)
+                  :color '(1.0 0.0 0.0)
+                  :text "GAME OVER"
+                  :action #'generate-world)))
                   
 (defclass sqrewy (enemy)
   ((angle :initform 0 :accessor angle)
