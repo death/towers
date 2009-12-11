@@ -1360,4 +1360,8 @@
 
 (defun spline-editor ()
   (glut:display-window
-   (make-instance 'spline-editor :world (make-level 'spline-editor))))
+   (make-instance 'spline-editor
+                  :world-generator
+                  (lambda (index)
+                    (declare (ignore index))
+                    (make-level 'spline-editor)))))
