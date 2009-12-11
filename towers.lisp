@@ -814,7 +814,7 @@
 
 (defclass shooting-tower-mixin ()
   ((last-shot-tick :initform nil :accessor last-shot-tick)
-   (fire-rate :initarg :base-fire-rate :accessor base-fire-rate)
+   (base-fire-rate :initarg :base-fire-rate :accessor base-fire-rate)
    (detection-radius :initarg :detection-radius :accessor detection-radius)
    (draw-detection-circle :initarg :draw-detection-circle :accessor draw-detection-circle-p)
    (detection-circle-color :initform :red :accessor detection-circle-color))
