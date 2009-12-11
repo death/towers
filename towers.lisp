@@ -16,8 +16,12 @@
 (defparameter *draw-collision-circle-for-type* 'nil)
 
 (defparameter *data-directory*
-  (merge-pathnames (make-pathname :directory '(:relative "data"))
-                   (asdf:component-pathname (asdf:find-system "towers"))))
+  (let ((pathname (make-pathname :directory '(:relative "data"))))
+    (if (find-package "ASDF")
+        (let* ((system (funcall (find-symbol "FIND-SYSTEM" "ASDF") "towers"))
+               (home (funcall (find-symbol "COMPONENT-PATHNAME" "ASDF") system)))
+          (setf pathname (merge-pathnames pathname home)))
+        pathname)))
 
 
 ;;;; Utilities
