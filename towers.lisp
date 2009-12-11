@@ -336,9 +336,9 @@
 (defclass clickable-object (pickable-object)
   ())
 
-(defgeneric update (object tick)
-  (:method (object tick)
-    (declare (ignore object tick))))
+(defgeneric update (object)
+  (:method (object)
+    (declare (ignore object))))
 
 (defgeneric render (object))
 
@@ -350,6 +350,7 @@
 ;;;; Game world
 
 (defvar *world*)
+(defvar *tick*)
 
 (defclass world ()
   ((objects-to-delete :initform '() :accessor objects-to-delete)
@@ -403,10 +404,10 @@
       `(block nil
          (map-objects (lambda (,object-var) ,@forms) :world ,world :order ,order :type ,type))))
 
-(defmethod update ((w world) tick)
+(defmethod update ((w world))
   (let ((*world* w))
     (do-objects (object :order :update)
-      (update object tick))
+      (update object))
     (expunge-objects)))
 
 (defmethod render ((w world))
@@ -575,8 +576,7 @@
    (angle :initform 0.0 :accessor angle))
   (:default-initargs :collision-radius 8))
 
-(defmethod update ((hb homebase) tick)
-  (declare (ignore tick))
+(defmethod update ((hb homebase))
   (incf (angle hb) 2))
 
 (defmethod render ((hb homebase))
@@ -657,11 +657,11 @@
     :detection-radius 20
     :projectile-speed 2.0))
 
-(defmethod update ((tower blaster-tower) tick)
+(defmethod update ((tower blaster-tower))
   (let ((enemies (detect-enemies tower)))
     (when enemies
       (when (some (lambda (enemy) (good-to-fire-p enemy tower)) enemies)
-        (try-fire tower tick))
+        (try-fire tower *tick*))
       (aim tower (best-element enemies :key (lambda (enemy) (target-angle enemy tower)))))))
 
 (defun detect-enemies (tower)
@@ -724,8 +724,7 @@
 
 (defgeneric maybe-projectile-hit (projectile))
 
-(defmethod update ((proj projectile) tick)
-  (declare (ignore tick))
+(defmethod update ((proj projectile))
   (vec+= (pos proj) (vel proj))
   (unless (vec-contains (dim *world*) (pos proj))
     (remove-object proj)
@@ -832,8 +831,7 @@
    (vel :initform (vec 0.0 0.0) :accessor vel)
    (explosion-color :initarg :explosion-color :accessor explosion-color)))
 
-(defmethod update ((e enemy) tick)
-  (declare (ignore tick))
+(defmethod update ((e enemy))
   ;; Check collision with homebase
   (do-objects (hb :type 'homebase)
     (when (collide-p e hb)
@@ -871,8 +869,7 @@
    (dir :initform '> :accessor dir))
   (:default-initargs :collision-radius 2 :explosion-color (list 0.0 0.5 0.5)))
 
-(defmethod update :after ((sq sqrewy) tick)
-  (declare (ignore tick))
+(defmethod update :after ((sq sqrewy))
   (ecase (dir sq)
     (>
      (if (> (angle sq) 30)
@@ -904,14 +901,15 @@
    (wait-ticks :initarg :wait-ticks :accessor wait-ticks)
    (last-release-tick :initform nil :accessor last-release-tick)))
 
-(defmethod update ((w wave) tick)
-  (when (>= tick (start-tick w))
-    (cond ((null (enemies w))
-           (remove-object w))
-          ((or (null (last-release-tick w))
-               (>= (- tick (last-release-tick w)) (wait-ticks w)))
-           (release-an-enemy w)
-           (setf (last-release-tick w) tick)))))
+(defmethod update ((w wave))
+  (let ((tick *tick*))
+    (when (>= tick (start-tick w))
+      (cond ((null (enemies w))
+             (remove-object w))
+            ((or (null (last-release-tick w))
+                 (>= (- tick (last-release-tick w)) (wait-ticks w)))
+             (release-an-enemy w)
+             (setf (last-release-tick w) tick))))))
 
 (defmethod render ((w wave)))  
 
@@ -954,8 +952,7 @@
           (setf (aref angles i) (random 360.0))
           (setf (aref angles-mul i) (/ (- (random 2.0) 1.0) 3.0)))))))
 
-(defmethod update ((e explosion) tick)
-  (declare (ignore tick))
+(defmethod update ((e explosion))
   (with-slots (positions velocities accelerations energies angles angles-mul) e
     (let ((n (number-of-particles e))
           (dead 0))
@@ -1192,7 +1189,8 @@
     (when (>= now (time-to-next-tick w))
       (incf (tick w))
       (setf (time-to-next-tick w) (+ now *tick-duration*))
-      (update (world w) (tick w))
+      (let ((*tick* (tick w)))
+        (update (world w)))
       (glut:post-redisplay))))
 
 (defun display-text (x y object)
