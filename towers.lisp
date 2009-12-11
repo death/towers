@@ -1059,15 +1059,14 @@
 
 (defun enemy-die (enemy)
   (remove-object enemy)
-  (unless (got-more-enemies-p)
-    (win-level)))
+  (maybe-win-level))
 
-(defun got-more-enemies-p ()
-  (do-objects (object :type '(or enemy wave))
-    (declare (ignore object))
-    (return-from got-more-enemies-p t)))
-
-(defun win-level ()
+(defun maybe-win-level ()
+  (flet ((no-win () (return-from maybe-win-level)))
+    (do-objects (object :type '(or enemy wave homebase))
+      (etypecase object
+        ((or enemy wave) (no-win))
+        (homebase (when (<= (lives object) 0) (no-win))))))
   (add-object
    (make-instance 'message
                   :pos (vec -8.0 0.0)
