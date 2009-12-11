@@ -670,6 +670,9 @@
                           (pos tower) (detection-radius tower))
       (collect enemy))))
 
+(defgeneric projectile-initial-position (tower))
+(defgeneric projectile-initial-velocity (tower))
+
 (defun target-angle (enemy tower)
   (let ((pe (pos enemy))
         (ve (vel enemy))
