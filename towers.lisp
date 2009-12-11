@@ -336,18 +336,20 @@
 (defclass clickable-object (pickable-object)
   ())
 
-(defgeneric update (object tick world)
-  (:method (object tick world)
-    (declare (ignore object tick world))))
+(defgeneric update (object tick)
+  (:method (object tick)
+    (declare (ignore object tick))))
 
 (defgeneric render (object))
 
-(defgeneric select (object op pos world)
-  (:method ((object null) op pos world)
-    (declare (ignore op pos world))))
+(defgeneric select (object op pos)
+  (:method ((object null) op pos)
+    (declare (ignore op pos))))
 
 
 ;;;; Game world
+
+(defvar *world*)
 
 (defclass world ()
   ((objects-to-delete :initform '() :accessor objects-to-delete)
@@ -357,7 +359,7 @@
 (defun make-world ()
   (make-instance 'world))
 
-(defun add-object (object world)
+(defun add-object (object &optional (world *world*))
   (push object (aref (objects world) (object-list-index object))))
 
 (defun object-list-index (object)
@@ -370,16 +372,16 @@
     (tower 1)
     (t 0)))
 
-(defun remove-object (object world)
+(defun remove-object (object &optional (world *world*))
   (push object (objects-to-delete world)))
 
-(defun expunge-objects (world)
+(defun expunge-objects (&optional (world *world*))
   (dolist (object (objects-to-delete world))
     (deletef (aref (objects world) (object-list-index object))
              object :count 1))
   (setf (objects-to-delete world) '()))
 
-(defun map-objects (function world &key (order :hit-test) (type t))
+(defun map-objects (function &key (world *world*) (order :hit-test) (type t))
   (unless (type= type 'nil)
     (flet ((maybe-call-function (object)
              (when (and (typep object type)
@@ -390,37 +392,38 @@
          (loop for list across (objects world) do
                (mapc #'maybe-call-function list)))))))
 
-(defmacro do-objects ((object-var world &key (order :hit-test) (type t) collecting) &body forms)
+(defmacro do-objects ((object-var &key (world '*world*) (order :hit-test) (type t) collecting) &body forms)
   (if collecting
       (with-gensyms (collection)
         `(let ((,collection '()))
            (flet ((collect (x) (push x ,collection)))
              (block nil
-               (map-objects (lambda (,object-var) ,@forms) ,world :order ,order :type ,type)))
+               (map-objects (lambda (,object-var) ,@forms) :world ,world :order ,order :type ,type)))
            ,collection))
       `(block nil
-         (map-objects (lambda (,object-var) ,@forms) ,world :order ,order :type ,type))))
+         (map-objects (lambda (,object-var) ,@forms) :world ,world :order ,order :type ,type))))
 
-(defmethod update ((w world) tick world)
-  (declare (ignore world))
-  (do-objects (object w :order :update)
-    (update object tick w))
-  (expunge-objects w))
+(defmethod update ((w world) tick)
+  (let ((*world* w))
+    (do-objects (object :order :update)
+      (update object tick))
+    (expunge-objects)))
 
 (defmethod render ((w world))
-  (do-objects (object w :order :render)
-    (render object)
-    (when (typep object *draw-collision-circle-for-type*)
-      (gl:with-pushed-matrix
-        (with-vec (x y (pos object))
-          (gl:translate x y 0.0))
-        (gl:color 1.0 0.0 0.0)
-        (draw-circle (collision-radius object))))))
+  (let ((*world* w))
+    (do-objects (object :order :render)
+      (render object)
+      (when (typep object *draw-collision-circle-for-type*)
+        (gl:with-pushed-matrix
+          (with-vec (x y (pos object))
+            (gl:translate x y 0.0))
+          (gl:color 1.0 0.0 0.0)
+          (draw-circle (collision-radius object)))))))
 
-(defun player (world)
+(defun player (&optional (world *world*))
   (first (aref (objects world) 5)))
 
-(defun tower-control (world)
+(defun tower-control (&optional (world *world*))
   (first (aref (objects world) 6)))
 
 
@@ -434,23 +437,22 @@
     (gl:color 1.0 1.0 1.0)
     (display-text -90.0 -80.0 (cash player))))
 
-(defun try-buy (tower player world)
+(defun try-buy (tower player)
   (when (>= (cash player) (buy-price tower))
     (decf (cash player) (buy-price tower))
     (incf (level tower))
-    (add-object tower world)))
+    (add-object tower)))
 
-(defun try-upgrade (tower player world)
-  (declare (ignore world))
+(defun try-upgrade (tower player)
   (when (and (< (level tower) (max-level tower))
              (>= (cash player) (buy-price tower)))
     (decf (cash player) (buy-price tower))
     (incf (level tower))))
 
-(defun sell (tower player world)
+(defun sell (tower player)
   (incf (cash player) (sell-price tower))
-  (setf (tower (tower-control world)) nil)
-  (remove-object tower world))
+  (setf (tower (tower-control)) nil)
+  (remove-object tower))
 
 
 ;;;; Tower control
@@ -468,15 +470,15 @@
       (display-text 50.0 -85.0 "Upgrade")
       (display-text 50.0 -90.0 "Sell"))))
 
-(defmethod select ((control tower-control) op pos world)
+(defmethod select ((control tower-control) op pos)
   (ecase op
     (:obtain
      (when-let (tower (tower control))
        (with-vec (x y pos)
          (cond ((and (>= x 50.0) (>= y -86.0) (<= y -81.0))
-                (try-upgrade tower (player world) world))
+                (try-upgrade tower (player)))
                ((and (>= x 50.0) (>= y -91.0) (<= y -86.0))
-                (sell tower (player world) world))))))
+                (sell tower (player)))))))
     (:release)
     (:move)))
 
@@ -573,8 +575,8 @@
    (angle :initform 0.0 :accessor angle))
   (:default-initargs :collision-radius 8))
 
-(defmethod update ((hb homebase) tick world)
-  (declare (ignore tick world))
+(defmethod update ((hb homebase) tick)
+  (declare (ignore tick))
   (incf (angle hb) 2))
 
 (defmethod render ((hb homebase))
@@ -597,7 +599,7 @@
    (factory :initarg :factory :accessor tower-factory))
   (:default-initargs :level 0))
 
-(defgeneric try-fire (tower tick world))
+(defgeneric try-fire (tower tick))
 (defgeneric tower-projectile (tower))
 (defgeneric fire-rate (tower))
 
@@ -625,11 +627,11 @@
 (defmethod fire-rate ((tower shooting-tower-mixin))
   (* (base-fire-rate tower) (level tower)))
 
-(defmethod try-fire ((tower shooting-tower-mixin) tick world)
+(defmethod try-fire ((tower shooting-tower-mixin) tick)
   (let ((last-shot-tick (last-shot-tick tower)))
     (when (or (null last-shot-tick)
               (>= (- tick last-shot-tick) (floor *frames-per-second* (fire-rate tower))))
-      (add-object (tower-projectile tower) world)
+      (add-object (tower-projectile tower))
       (setf (last-shot-tick tower) tick))))
 
 (defmethod render :after ((tower shooting-tower-mixin))
@@ -655,15 +657,15 @@
     :detection-radius 20
     :projectile-speed 2.0))
 
-(defmethod update ((tower blaster-tower) tick world)
-  (let ((enemies (detect-enemies tower world)))
+(defmethod update ((tower blaster-tower) tick)
+  (let ((enemies (detect-enemies tower)))
     (when enemies
       (when (some (lambda (enemy) (good-to-fire-p enemy tower)) enemies)
-        (try-fire tower tick world))
+        (try-fire tower tick))
       (aim tower (best-element enemies :key (lambda (enemy) (target-angle enemy tower)))))))
 
-(defun detect-enemies (tower world)
-  (do-objects (enemy world :type 'enemy :collecting t)
+(defun detect-enemies (tower)
+  (do-objects (enemy :type 'enemy :collecting t)
     (when (close-enough-p (pos enemy) (collision-radius enemy)
                           (pos tower) (detection-radius tower))
       (collect enemy))))
@@ -706,29 +708,29 @@
       (wf-draw-part 'cannon wf-object)
       (gl:polygon-mode :front-and-back :fill))))
 
-(defmethod select ((tower blaster-tower) op pos world)
+(defmethod select ((tower blaster-tower) op pos)
   (declare (ignore pos))
   (ecase op
     (:obtain
      (setf (draw-detection-circle-p tower) t)
-     (setf (tower (tower-control world)) tower))
+     (setf (tower (tower-control)) tower))
     (:release
-     (setf (tower (tower-control world)) nil)
+     (setf (tower (tower-control)) nil)
      (setf (draw-detection-circle-p tower) nil))
     (:move)))
 
 (defclass projectile (circle-collidable-object)
   ((vel :initarg :vel :accessor vel)))
 
-(defgeneric maybe-projectile-hit (projectile world))
+(defgeneric maybe-projectile-hit (projectile))
 
-(defmethod update ((proj projectile) tick world)
+(defmethod update ((proj projectile) tick)
   (declare (ignore tick))
   (vec+= (pos proj) (vel proj))
-  (unless (vec-contains (dim world) (pos proj))
-    (remove-object proj world)
+  (unless (vec-contains (dim *world*) (pos proj))
+    (remove-object proj)
     (return-from update))
-  (maybe-projectile-hit proj world))
+  (maybe-projectile-hit proj))
 
 (defclass blaster-projectile (projectile)
   ((damage :initarg :damage :accessor damage))
@@ -753,24 +755,23 @@
     (gl:color 0.0 1.0 0.0)
     (draw-circle 0.6)))
 
-(defmethod maybe-projectile-hit ((proj blaster-projectile) world)
+(defmethod maybe-projectile-hit ((proj blaster-projectile))
   (let ((hit nil))
-    (do-objects (enemy world :type 'enemy)
+    (do-objects (enemy :type 'enemy)
       (when (collide-p proj enemy)
         (setf hit t)
         (when (<= (decf (hit-points enemy) (damage proj)) 0)
-          (enemy-kill enemy world))))
+          (enemy-kill enemy))))
     (when hit
-      (remove-object proj world))))
+      (remove-object proj))))
 
-(defun enemy-kill (enemy world)
-  (incf (cash (player world)) (cash-reward enemy))
+(defun enemy-kill (enemy)
+  (incf (cash (player)) (cash-reward enemy))
   (add-object (make-instance 'explosion
                              :number-of-particles 100
                              :color (explosion-color enemy)
-                             :center (pos enemy))
-              world)
-  (enemy-die enemy world))
+                             :center (pos enemy)))
+  (enemy-die enemy))
 
 (defclass tower-factory (draggable-object circle-collidable-object)
   ((buy-prices :initarg :buy-prices :accessor buy-prices)
@@ -794,10 +795,10 @@
     (gl:color 1.0 1.0 1.0)
     (display-text (- x 0.5) (- y 10.0) (aref (buy-prices factory) 0))))
 
-(defmethod select ((factory tower-factory) op pos world)
+(defmethod select ((factory tower-factory) op pos)
   (with-slots (new-tower) factory
     (flet ((can-place-here-p ()
-             (do-objects (object world :type 'collidable-object)
+             (do-objects (object :type 'collidable-object)
                (when (collide-p new-tower object)
                  (return-from can-place-here-p nil)))
              t))
@@ -810,7 +811,7 @@
                               :factory factory)))
         (:release
          (when (can-place-here-p)
-           (try-buy new-tower (player world) world)
+           (try-buy new-tower (player))
            (setf (draw-detection-circle-p new-tower) nil))
          (setf new-tower nil))
         (:move
@@ -831,14 +832,14 @@
    (vel :initform (vec 0.0 0.0) :accessor vel)
    (explosion-color :initarg :explosion-color :accessor explosion-color)))
 
-(defmethod update ((e enemy) tick world)
+(defmethod update ((e enemy) tick)
   (declare (ignore tick))
   ;; Check collision with homebase
-  (do-objects (hb world :type 'homebase)
+  (do-objects (hb :type 'homebase)
     (when (collide-p e hb)
-      (enemy-die e world)
+      (enemy-die e)
       (when (= (decf (lives hb)) 0)
-        (game-over world))
+        (game-over))
       (return-from update)))
   ;; Compute position and velocity
   (let* ((pos (pos e))
@@ -849,30 +850,29 @@
       (when (= (next-pos-idx e) (length vertices))
         ;; This shouldn't happen, as we're supposed to crash into
         ;; homebase before reaching the endpoint
-        (enemy-die e world)
+        (enemy-die e)
         (return-from update))
       (setf next-pos (aref vertices (next-pos-idx e))))
     (setf (vel e) (vel-vec (spd e) (vec- next-pos pos)))
     (vec+= pos (vel e))))
 
-(defun enemy-die (enemy world)
-  (remove-object enemy world))
+(defun enemy-die (enemy)
+  (remove-object enemy))
 
-(defun game-over (world)
+(defun game-over ()
   (add-object
    (make-instance 'message
                   :pos (vec -14.0 0.0)
                   :color '(1 0 0)
-                  :text "GAME OVER")
-   world))
+                  :text "GAME OVER")))
                   
 (defclass sqrewy (enemy)
   ((angle :initform 0 :accessor angle)
    (dir :initform '> :accessor dir))
   (:default-initargs :collision-radius 2 :explosion-color (list 0.0 0.5 0.5)))
 
-(defmethod update :after ((sq sqrewy) tick world)
-  (declare (ignore tick world))
+(defmethod update :after ((sq sqrewy) tick)
+  (declare (ignore tick))
   (ecase (dir sq)
     (>
      (if (> (angle sq) 30)
@@ -904,19 +904,19 @@
    (wait-ticks :initarg :wait-ticks :accessor wait-ticks)
    (last-release-tick :initform nil :accessor last-release-tick)))
 
-(defmethod update ((w wave) tick world)
+(defmethod update ((w wave) tick)
   (when (>= tick (start-tick w))
     (cond ((null (enemies w))
-           (remove-object w world))
+           (remove-object w))
           ((or (null (last-release-tick w))
                (>= (- tick (last-release-tick w)) (wait-ticks w)))
-           (release-an-enemy w world)
+           (release-an-enemy w)
            (setf (last-release-tick w) tick)))))
 
 (defmethod render ((w wave)))  
 
-(defun release-an-enemy (wave world)
-  (add-object (pop (enemies wave)) world))
+(defun release-an-enemy (wave)
+  (add-object (pop (enemies wave))))
 
 
 ;;;; Explosions
@@ -954,7 +954,7 @@
           (setf (aref angles i) (random 360.0))
           (setf (aref angles-mul i) (/ (- (random 2.0) 1.0) 3.0)))))))
 
-(defmethod update ((e explosion) tick world)
+(defmethod update ((e explosion) tick)
   (declare (ignore tick))
   (with-slots (positions velocities accelerations energies angles angles-mul) e
     (let ((n (number-of-particles e))
@@ -968,7 +968,7 @@
               (t
                (incf dead))))
       (when (= dead n)
-        (remove-object e world)))))
+        (remove-object e)))))
 
 (defmethod render ((e explosion))
   (with-slots (positions angles energies) e
@@ -1089,8 +1089,8 @@
   ((selection :initform nil :accessor selection))
   (:default-initargs :pos (vec 0.0 0.0) :collision-radius 2))
 
-(defun pick-object (mouse world)
-  (do-objects (object world :type 'pickable-object)
+(defun pick-object (mouse)
+  (do-objects (object :type 'pickable-object)
     (when (collide-p object mouse)
       (return-from pick-object object))))
 
@@ -1133,54 +1133,56 @@
     (#\Esc (glut:destroy-current-window))))
 
 (defmethod glut:motion ((w game-window) x y)
-  (multiple-value-bind (x y) (glu:un-project x y 0.0)
-    (vec-assign (pos (mouse w)) x (- y)))
-  (select (selection (mouse w)) :move (pos (mouse w)) (world w)))
+  (let ((*world* (world w)))
+    (multiple-value-bind (x y) (glu:un-project x y 0.0)
+      (vec-assign (pos (mouse w)) x (- y)))
+    (select (selection (mouse w)) :move (pos (mouse w)))))
 
-(defgeneric left-button (state mouse selected-object picked-object world)
-  (:method (state mouse selected-object picked-object world)
-    (declare (ignore state mouse selected-object picked-object world))))
+(defgeneric left-button (state mouse selected-object picked-object)
+  (:method (state mouse selected-object picked-object)
+    (declare (ignore state mouse selected-object picked-object))))
 
 (defmethod glut:mouse ((w game-window) button state x y)
   (glut:motion w x y)
-  (case button
-    (:left-button
-     (let ((m (mouse w)))
-       (left-button state m (selection m) (pick-object m (world w)) (world w))))))
+  (let ((*world* (world w)))
+    (case button
+      (:left-button
+       (let ((m (mouse w)))
+         (left-button state m (selection m) (pick-object m)))))))
 
-(defun obtain-object (object mouse world)
+(defun obtain-object (object mouse)
   (when (selection mouse)
-    (release-object mouse world))
+    (release-object mouse))
   (setf (selection mouse) object)
-  (select (selection mouse) :obtain (pos mouse) world))
+  (select (selection mouse) :obtain (pos mouse)))
 
-(defun release-object (mouse world)
+(defun release-object (mouse)
   (when (selection mouse)
-    (select (selection mouse) :release (pos mouse) world)
+    (select (selection mouse) :release (pos mouse))
     (setf (selection mouse) nil)))
 
-(defmethod left-button ((state (eql :down)) mouse (selected-object selectable-object) (picked-object null) world)
-  (release-object mouse world))
+(defmethod left-button ((state (eql :down)) mouse (selected-object selectable-object) (picked-object null))
+  (release-object mouse))
 
-(defmethod left-button ((state (eql :down)) mouse selected-object (picked-object selectable-object) world)
+(defmethod left-button ((state (eql :down)) mouse selected-object (picked-object selectable-object))
   (declare (ignore selected-object))
-  (obtain-object picked-object mouse world))
+  (obtain-object picked-object mouse))
 
-(defmethod left-button ((state (eql :down)) mouse selected-object (picked-object draggable-object) world)
+(defmethod left-button ((state (eql :down)) mouse selected-object (picked-object draggable-object))
   (declare (ignore selected-object))
-  (obtain-object picked-object mouse world))
+  (obtain-object picked-object mouse))
 
-(defmethod left-button ((state (eql :up)) mouse (selected-object draggable-object) picked-object world)
+(defmethod left-button ((state (eql :up)) mouse (selected-object draggable-object) picked-object)
   (declare (ignore picked-object))
-  (release-object mouse world))
+  (release-object mouse))
 
-(defmethod left-button ((state (eql :down)) mouse selected-object (picked-object clickable-object) world)
+(defmethod left-button ((state (eql :down)) mouse selected-object (picked-object clickable-object))
   (declare (ignore selected-object))
-  (select picked-object :obtain (pos mouse) world))
+  (select picked-object :obtain (pos mouse)))
 
-(defmethod left-button ((state (eql :up)) mouse selected-object (picked-object clickable-object) world)
+(defmethod left-button ((state (eql :up)) mouse selected-object (picked-object clickable-object))
   (declare (ignore selected-object))
-  (select picked-object :release (pos mouse) world))
+  (select picked-object :release (pos mouse)))
 
 (defmethod glut:idle ((w game-window))
   (let ((now (glut:get :elapsed-time)))
@@ -1190,7 +1192,7 @@
     (when (>= now (time-to-next-tick w))
       (incf (tick w))
       (setf (time-to-next-tick w) (+ now *tick-duration*))
-      (update (world w) (tick w) (world w))
+      (update (world w) (tick w))
       (glut:post-redisplay))))
 
 (defun display-text (x y object)
@@ -1236,8 +1238,7 @@
       (gl:translate x y 0.0)
       (draw-circle 2))))
 
-(defmethod select ((sp spline-point) op pos world)
-  (declare (ignore world))
+(defmethod select ((sp spline-point) op pos)
   (ecase op
     (:obtain)
     (:release)
@@ -1251,27 +1252,28 @@
   ((mouse :initform (make-instance 'mouse) :accessor mouse)))
 
 (defmethod glut:keyboard ((w spline-editor) key x y)
-  (let ((mouse (mouse w))
-        (spliner (do-objects (x (world w) :type 'spliner) (return x))))
-    (multiple-value-bind (x y) (glu:un-project x y 0.0)
-      (vec-assign (pos (mouse w)) x (- y)))
-    (case key
-      (#\a
-       (let ((sp (make-instance 'spline-point :pos (copy-vec (pos mouse)))))
-         (appendf (points spliner) (list sp))
-         (add-object sp (world w))))
-      (#\d
-       (when-let (sp (pick-object (mouse w) (world w)))
-         (deletef (points spliner) sp)
-         (remove-object sp (world w))))
-      (#\p
-       (format t "(")
-       (dolist (sp (points spliner))
-         (with-vec (x y (pos sp))
-           (format t " ~,3F ~,3F~%" x y)))
-       (format t ")~%")
-       (finish-output))
-      (t (call-next-method)))))
+  (let ((*world* (world w)))
+    (let ((mouse (mouse w))
+          (spliner (do-objects (x :type 'spliner) (return x))))
+      (multiple-value-bind (x y) (glu:un-project x y 0.0)
+        (vec-assign (pos (mouse w)) x (- y)))
+      (case key
+        (#\a
+         (let ((sp (make-instance 'spline-point :pos (copy-vec (pos mouse)))))
+           (appendf (points spliner) (list sp))
+           (add-object sp)))
+        (#\d
+         (when-let (sp (pick-object (mouse w)))
+           (deletef (points spliner) sp)
+           (remove-object sp)))
+        (#\p
+         (format t "(")
+         (dolist (sp (points spliner))
+           (with-vec (x y (pos sp))
+             (format t " ~,3F ~,3F~%" x y)))
+         (format t ")~%")
+         (finish-output))
+        (t (call-next-method))))))
 
 (defun spline-editor ()
   (glut:display-window
