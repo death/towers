@@ -437,6 +437,135 @@
   (first (aref (objects world) 6)))
 
 
+;;;; Game window
+
+(defclass mouse (circle-collidable-object)
+  ((selection :initform nil :accessor selection))
+  (:default-initargs :pos (vec 0.0 0.0) :collision-radius 2))
+
+(defun pick-object (mouse)
+  (do-objects (object :type 'pickable-object)
+    (when (collide-p object mouse)
+      (return-from pick-object object))))
+
+(defclass game-window (glut:window)
+  ((world :initarg :world :accessor world)
+   (time-to-next-tick :initform nil :accessor time-to-next-tick)
+   (tick :initform nil :accessor tick)
+   (mouse :initform (make-instance 'mouse) :accessor mouse))
+  (:default-initargs
+   :width 800 :height 800
+   :title "Game"
+   :mode '(:double :rgb)))
+
+(defmethod glut:display-window :before ((w game-window))
+  (gl:clear-color 0 0 0 0)
+  (gl:shade-model :flat)
+  (gl:disable :depth-test)
+  (gl:enable :blend)
+  (gl:blend-func :src-alpha :one-minus-src-alpha))
+
+(defmethod glut:display ((w game-window))
+  (gl:load-identity)
+  (gl:clear-color 0 0 0 0)
+  (gl:clear :color-buffer)
+  (gl:translate .375 .375 0.0)
+  (render (world w))
+  (glut:swap-buffers))
+
+(defmethod glut:reshape ((w game-window) width height)
+  (gl:viewport 0 0 width height)
+  (gl:matrix-mode :projection)
+  (gl:load-identity)
+  (with-vec (x y (dim (world w)))
+    (gl:ortho (- x) x (- y) y 0 1))
+  (gl:matrix-mode :modelview))
+
+(defmethod glut:keyboard ((w game-window) key x y)
+  (declare (ignore x y))
+  (case key
+    (#\Esc (glut:destroy-current-window))))
+
+(defmethod glut:motion ((w game-window) x y)
+  (let ((*world* (world w)))
+    (multiple-value-bind (x y) (glu:un-project x y 0.0)
+      (vec-assign (pos (mouse w)) x (- y)))
+    (select (selection (mouse w)) :move (pos (mouse w)))))
+
+(defgeneric left-button (state mouse selected-object picked-object)
+  (:method (state mouse selected-object picked-object)
+    (declare (ignore state mouse selected-object picked-object))))
+
+(defmethod glut:mouse ((w game-window) button state x y)
+  (glut:motion w x y)
+  (let ((*world* (world w)))
+    (case button
+      (:left-button
+       (let ((m (mouse w)))
+         (left-button state m (selection m) (pick-object m)))))))
+
+(defun obtain-object (object mouse)
+  (when (selection mouse)
+    (release-object mouse))
+  (setf (selection mouse) object)
+  (select (selection mouse) :obtain (pos mouse)))
+
+(defun release-object (mouse)
+  (when (selection mouse)
+    (select (selection mouse) :release (pos mouse))
+    (setf (selection mouse) nil)))
+
+(defmethod left-button ((state (eql :down)) mouse (selected-object selectable-object) (picked-object null))
+  (release-object mouse))
+
+(defmethod left-button ((state (eql :down)) mouse selected-object (picked-object selectable-object))
+  (declare (ignore selected-object))
+  (obtain-object picked-object mouse))
+
+(defmethod left-button ((state (eql :down)) mouse selected-object (picked-object draggable-object))
+  (declare (ignore selected-object))
+  (obtain-object picked-object mouse))
+
+(defmethod left-button ((state (eql :up)) mouse (selected-object draggable-object) picked-object)
+  (declare (ignore picked-object))
+  (release-object mouse))
+
+(defmethod left-button ((state (eql :down)) mouse selected-object (picked-object clickable-object))
+  (declare (ignore selected-object))
+  (select picked-object :obtain (pos mouse)))
+
+(defmethod left-button ((state (eql :up)) mouse selected-object (picked-object clickable-object))
+  (declare (ignore selected-object))
+  (select picked-object :release (pos mouse)))
+
+(defmethod glut:idle ((w game-window))
+  (let ((now (glut:get :elapsed-time)))
+    (when (null (tick w))
+      (setf (tick w) -1)
+      (setf (time-to-next-tick w) now))
+    (when (>= now (time-to-next-tick w))
+      (incf (tick w))
+      (setf (time-to-next-tick w) (+ now *tick-duration*))
+      (let ((*tick* (tick w)))
+        (update (world w)))
+      (glut:post-redisplay))))
+
+(defun display-text (x y object)
+  (unless (stringp object)
+    (setf object (princ-to-string object)))
+  (gl:with-pushed-matrix
+    (gl:load-identity)
+    (gl:raster-pos x y)
+    (glut:bitmap-string glut:+bitmap-8-by-13+ object)))
+
+
+;;;; Game
+
+(defun game ()
+  (glut:display-window
+   (make-instance 'game-window :world (make-level 'level-2))))
+
+
 ;;;; Player
 
 (defclass player ()
@@ -1090,135 +1219,6 @@
                              :hit-points 30
                              :cash-reward 10)))
   (grid))
-
-
-;;;; Game window
-
-(defclass mouse (circle-collidable-object)
-  ((selection :initform nil :accessor selection))
-  (:default-initargs :pos (vec 0.0 0.0) :collision-radius 2))
-
-(defun pick-object (mouse)
-  (do-objects (object :type 'pickable-object)
-    (when (collide-p object mouse)
-      (return-from pick-object object))))
-
-(defclass game-window (glut:window)
-  ((world :initarg :world :accessor world)
-   (time-to-next-tick :initform nil :accessor time-to-next-tick)
-   (tick :initform nil :accessor tick)
-   (mouse :initform (make-instance 'mouse) :accessor mouse))
-  (:default-initargs
-   :width 800 :height 800
-   :title "Game"
-   :mode '(:double :rgb)))
-
-(defmethod glut:display-window :before ((w game-window))
-  (gl:clear-color 0 0 0 0)
-  (gl:shade-model :flat)
-  (gl:disable :depth-test)
-  (gl:enable :blend)
-  (gl:blend-func :src-alpha :one-minus-src-alpha))
-
-(defmethod glut:display ((w game-window))
-  (gl:load-identity)
-  (gl:clear-color 0 0 0 0)
-  (gl:clear :color-buffer)
-  (gl:translate .375 .375 0.0)
-  (render (world w))
-  (glut:swap-buffers))
-
-(defmethod glut:reshape ((w game-window) width height)
-  (gl:viewport 0 0 width height)
-  (gl:matrix-mode :projection)
-  (gl:load-identity)
-  (with-vec (x y (dim (world w)))
-    (gl:ortho (- x) x (- y) y 0 1))
-  (gl:matrix-mode :modelview))
-
-(defmethod glut:keyboard ((w game-window) key x y)
-  (declare (ignore x y))
-  (case key
-    (#\Esc (glut:destroy-current-window))))
-
-(defmethod glut:motion ((w game-window) x y)
-  (let ((*world* (world w)))
-    (multiple-value-bind (x y) (glu:un-project x y 0.0)
-      (vec-assign (pos (mouse w)) x (- y)))
-    (select (selection (mouse w)) :move (pos (mouse w)))))
-
-(defgeneric left-button (state mouse selected-object picked-object)
-  (:method (state mouse selected-object picked-object)
-    (declare (ignore state mouse selected-object picked-object))))
-
-(defmethod glut:mouse ((w game-window) button state x y)
-  (glut:motion w x y)
-  (let ((*world* (world w)))
-    (case button
-      (:left-button
-       (let ((m (mouse w)))
-         (left-button state m (selection m) (pick-object m)))))))
-
-(defun obtain-object (object mouse)
-  (when (selection mouse)
-    (release-object mouse))
-  (setf (selection mouse) object)
-  (select (selection mouse) :obtain (pos mouse)))
-
-(defun release-object (mouse)
-  (when (selection mouse)
-    (select (selection mouse) :release (pos mouse))
-    (setf (selection mouse) nil)))
-
-(defmethod left-button ((state (eql :down)) mouse (selected-object selectable-object) (picked-object null))
-  (release-object mouse))
-
-(defmethod left-button ((state (eql :down)) mouse selected-object (picked-object selectable-object))
-  (declare (ignore selected-object))
-  (obtain-object picked-object mouse))
-
-(defmethod left-button ((state (eql :down)) mouse selected-object (picked-object draggable-object))
-  (declare (ignore selected-object))
-  (obtain-object picked-object mouse))
-
-(defmethod left-button ((state (eql :up)) mouse (selected-object draggable-object) picked-object)
-  (declare (ignore picked-object))
-  (release-object mouse))
-
-(defmethod left-button ((state (eql :down)) mouse selected-object (picked-object clickable-object))
-  (declare (ignore selected-object))
-  (select picked-object :obtain (pos mouse)))
-
-(defmethod left-button ((state (eql :up)) mouse selected-object (picked-object clickable-object))
-  (declare (ignore selected-object))
-  (select picked-object :release (pos mouse)))
-
-(defmethod glut:idle ((w game-window))
-  (let ((now (glut:get :elapsed-time)))
-    (when (null (tick w))
-      (setf (tick w) -1)
-      (setf (time-to-next-tick w) now))
-    (when (>= now (time-to-next-tick w))
-      (incf (tick w))
-      (setf (time-to-next-tick w) (+ now *tick-duration*))
-      (let ((*tick* (tick w)))
-        (update (world w)))
-      (glut:post-redisplay))))
-
-(defun display-text (x y object)
-  (unless (stringp object)
-    (setf object (princ-to-string object)))
-  (gl:with-pushed-matrix
-    (gl:load-identity)
-    (gl:raster-pos x y)
-    (glut:bitmap-string glut:+bitmap-8-by-13+ object)))
-
-
-;;;; Game
-
-(defun game ()
-  (glut:display-window
-   (make-instance 'game-window :world (make-level 'level-2))))
 
 
 ;;;; Spline editor
