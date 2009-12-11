@@ -379,9 +379,9 @@
 
 (defun object-list-index (object)
   (typecase object
-    (tower-control 6)
-    (player 5)
-    (message 4)
+    (message 6)
+    (tower-control 5)
+    (player 4)
     (projectile 3)
     (enemy 2)
     (tower 1)
@@ -403,9 +403,13 @@
                         (not (member object (objects-to-delete world))))
                (funcall function object))))
       (ecase order
-        ((:render :update :hit-test)
+        ((:render :update)
          (loop for list across (objects world) do
-               (mapc #'maybe-call-function list)))))))
+               (mapc #'maybe-call-function list)))
+        ((:hit-test)
+         (loop for i from (1- (length (objects world))) downto 0 do
+               (mapc #'maybe-call-function (aref (objects world) i))))))))
+
 
 (defmacro do-objects ((object-var &key (world '*world*) (order :hit-test) (type t) collecting) &body forms)
   (if collecting
@@ -437,10 +441,10 @@
           (draw-circle (collision-radius object)))))))
 
 (defun player (&optional (world *world*))
-  (first (aref (objects world) 5)))
+  (first (aref (objects world) 4)))
 
 (defun tower-control (&optional (world *world*))
-  (first (aref (objects world) 6)))
+  (first (aref (objects world) 5)))
 
 
 ;;;; Game window
