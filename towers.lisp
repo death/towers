@@ -729,7 +729,7 @@
       (gl:rotate (angle hb) 0.0 0.0 1.0)
       (wf-draw (find-wf-object 'homebase))
       (gl:polygon-mode :front-and-back :fill)
-      (display-text (- x 0.5) (- y 0.5) (lives hb)))))
+      (display-text (- x 0.5) (- y 0.5) (max 0 (lives hb))))))
 
 
 ;;;; Towers
