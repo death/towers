@@ -114,6 +114,9 @@
 
 (defun cddddddr (cons) (cddddr (cddr cons)))
 
+(defun nothing (&rest whatever)
+  (declare (ignore whatever)))
+
 
 ;;;; 2D vectors
 
@@ -695,16 +698,41 @@
 
 ;;;; Message
 
-(defclass message ()
+(defclass message (clickable-object)
   ((pos :initarg :pos :accessor pos)
    (color :initarg :color :accessor color)
-   (text :initarg :text :accessor text)))
+   (text :initarg :text :accessor text)
+   (action :initarg :action :accessor action))
+  (:default-initargs :action #'nothing))
 
 (defmethod render ((m message))
   (gl:with-pushed-matrix
     (apply #'gl:color (color m))
     (with-vec (x y (pos m))
       (display-text x y (text m)))))
+
+(defmethod collide-p ((message message) (mouse mouse))
+  t)
+
+(defmethod collide-p ((mouse mouse) (message message))
+  t)
+
+(defmethod collide-p ((message message) object)
+  (declare (ignore object))
+  nil)
+
+(defmethod collide-p (object (message message))
+  (declare (ignore object))
+  nil)
+
+(defmethod select ((m message) op pos)
+  (declare (ignore pos))
+  (ecase op
+    (:obtain
+     (remove-object m)
+     (funcall (action m)))
+    (:release)
+    (:move)))
 
 
 ;;;; Homebase
