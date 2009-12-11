@@ -609,19 +609,19 @@
     (gl:color 1.0 1.0 1.0)
     (display-text -90.0 -80.0 (cash player))))
 
-(defun try-buy (tower player)
+(defun try-buy (tower &optional (player (player)))
   (when (>= (cash player) (buy-price tower))
     (decf (cash player) (buy-price tower))
     (incf (level tower))
     (add-object tower)))
 
-(defun try-upgrade (tower player)
+(defun try-upgrade (tower &optional (player (player)))
   (when (and (< (level tower) (max-level tower))
              (>= (cash player) (buy-price tower)))
     (decf (cash player) (buy-price tower))
     (incf (level tower))))
 
-(defun sell (tower player)
+(defun sell (tower &optional (player (player)))
   (incf (cash player) (sell-price tower))
   (setf (tower (tower-control)) nil)
   (remove-object tower))
@@ -648,9 +648,9 @@
      (when-let (tower (tower control))
        (with-vec (x y pos)
          (cond ((and (>= x 50.0) (>= y -86.0) (<= y -81.0))
-                (try-upgrade tower (player)))
+                (try-upgrade tower))
                ((and (>= x 50.0) (>= y -91.0) (<= y -86.0))
-                (sell tower (player)))))))
+                (sell tower))))))
     (:release)
     (:move)))
 
@@ -1009,7 +1009,7 @@
                               :factory factory)))
         (:release
          (when (can-place-here-p)
-           (try-buy new-tower (player))
+           (try-buy new-tower)
            (setf (draw-detection-circle-p new-tower) nil))
          (setf new-tower nil))
         (:move
