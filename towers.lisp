@@ -1,5 +1,6 @@
 (defpackage #:towers
-  (:use #:cl #:alexandria))
+  (:use #:cl #:alexandria)
+  (:export #:game))
 
 (in-package #:towers)
 
