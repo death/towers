@@ -646,7 +646,7 @@
 (defclass projectile (circle-collidable-object)
   ((vel :initarg :vel :accessor vel)))
 
-(defgeneric projectile-hit (projectile enemies world))
+(defgeneric maybe-projectile-hit (projectile world))
 
 (defmethod update ((proj projectile) tick world)
   (declare (ignore tick))
@@ -654,13 +654,7 @@
   (unless (vec-contains (dim world) (pos proj))
     (remove-object proj world)
     (return-from update))
-  (let ((enemies-hit '()))
-    (map-objects (lambda (enemy)
-                   (when (collide-p proj enemy)
-                     (push enemy enemies-hit)))
-                 world :order :hit-test :type 'enemy)
-    (when enemies-hit
-      (projectile-hit proj enemies-hit world))))
+  (maybe-projectile-hit proj world))
 
 (defclass blaster-projectile (projectile)
   ((damage :initarg :damage :accessor damage))
@@ -685,11 +679,16 @@
     (gl:color 0.0 1.0 0.0)
     (draw-circle 0.6)))
 
-(defmethod projectile-hit ((proj blaster-projectile) enemies world)
-  (dolist (enemy enemies)
-    (when (<= (decf (hit-points enemy) (damage proj)) 0)
-      (enemy-kill enemy world)))
-  (remove-object proj world))
+(defmethod maybe-projectile-hit ((proj blaster-projectile) world)
+  (let ((hit nil))
+    (map-objects (lambda (enemy)
+                   (when (collide-p proj enemy)
+                     (setf hit t)
+                     (when (<= (decf (hit-points enemy) (damage proj)) 0)
+                       (enemy-kill enemy world))))
+                 world :order :hit-test :type 'enemy)
+    (when hit
+      (remove-object proj world))))
 
 (defun enemy-kill (enemy world)
   (incf (cash (player world)) (cash-reward enemy))
