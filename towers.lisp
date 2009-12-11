@@ -460,7 +460,7 @@
    (mouse :initform (make-instance 'mouse) :accessor mouse))
   (:default-initargs
    :width 800 :height 800
-   :title "Game"
+   :title "Towers"
    :mode '(:double :rgb)))
 
 (defmethod glut:display-window :before ((w game-window))
