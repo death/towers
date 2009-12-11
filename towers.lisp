@@ -358,6 +358,8 @@
 
 ;;;; Game world
 
+(defparameter *half-world-dimensions* (vec 100.0 100.0))
+
 (defvar *world*)
 (defvar *tick*)
 
@@ -477,7 +479,7 @@
   (gl:viewport 0 0 width height)
   (gl:matrix-mode :projection)
   (gl:load-identity)
-  (with-vec (x y (dim (world w)))
+  (with-vec (x y *half-world-dimensions*)
     (gl:ortho (- x) x (- y) y 0 1))
   (gl:matrix-mode :modelview))
 
@@ -867,7 +869,7 @@
 
 (defmethod update ((proj projectile))
   (vec+= (pos proj) (vel proj))
-  (unless (vec-contains (dim *world*) (pos proj))
+  (unless (vec-contains *half-world-dimensions* (pos proj))
     (remove-object proj)
     (return-from update))
   (maybe-projectile-hit proj))
