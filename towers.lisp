@@ -577,13 +577,14 @@
       (update (world w))
       (glut:post-redisplay))))
 
-(defun display-text (x y object)
-  (unless (stringp object)
-    (setf object (princ-to-string object)))
-  (gl:with-pushed-matrix
-    (gl:load-identity)
-    (gl:raster-pos x y)
-    (glut:bitmap-string glut:+bitmap-8-by-13+ object)))
+(defun display-text (x y object &rest format-args)
+  (let ((string (if (stringp object)
+                    (apply #'format nil object format-args)
+                    (princ-to-string object))))
+    (gl:with-pushed-matrix
+      (gl:load-identity)
+      (gl:raster-pos x y)
+      (glut:bitmap-string glut:+bitmap-8-by-13+ string))))
 
 
 ;;;; Game
@@ -637,9 +638,9 @@
     (gl:with-pushed-matrix
       (gl:color 0.2 0.5 1.0)
       (display-text 50.0 -75.0 (type-of tower))
-      (display-text 50.0 -80.0 (format nil "Level ~D" (level tower)))
-      (display-text 50.0 -85.0 (format nil "Upgrade (~D)" (buy-price tower)))
-      (display-text 50.0 -90.0 (format nil "Sell (~D)" (sell-price tower))))))
+      (display-text 50.0 -80.0 "Level ~D" (level tower))
+      (display-text 50.0 -85.0 "Upgrade (~D)" (buy-price tower))
+      (display-text 50.0 -90.0 "Sell (~D)" (sell-price tower)))))
 
 (defmethod select ((control tower-control) op pos)
   (ecase op
@@ -736,7 +737,7 @@
   (gl:with-pushed-matrix
     (apply #'gl:color (color m))
     (with-vec (x y (pos m))
-      (display-text x y (text m)))))
+      (display-text x y "~A" (text m)))))
 
 (defmethod collide-p ((message message) (mouse mouse))
   t)
