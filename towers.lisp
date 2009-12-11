@@ -591,7 +591,7 @@
                    (when (close-enough-p (pos enemy) (collision-radius enemy)
                                          (pos tower) (detection-radius tower))
                      (push enemy enemies)))
-                 world :order :hit-test :type 'enemy)
+                 world :type 'enemy)
     enemies))
 
 (defun target-angle (enemy tower)
@@ -686,7 +686,7 @@
                      (setf hit t)
                      (when (<= (decf (hit-points enemy) (damage proj)) 0)
                        (enemy-kill enemy world))))
-                 world :order :hit-test :type 'enemy)
+                 world :type 'enemy)
     (when hit
       (remove-object proj world))))
 
@@ -727,7 +727,7 @@
              (map-objects (lambda (object)
                             (when (collide-p new-tower object)
                               (return-from can-place-here-p nil)))
-                          world :order :hit-test :type 'collidable-object)
+                          world :type 'collidable-object)
              t))
       (ecase op
         (:obtain
@@ -768,7 +768,7 @@
                    (when (= (decf (lives hb)) 0)
                      (game-over world))
                    (return-from update)))
-               world :order :hit-test :type 'homebase)
+               world :type 'homebase)
   ;; Compute position and velocity
   (let* ((pos (pos e))
          (vertices (vertices (path e)))
@@ -948,14 +948,14 @@
              object :count 1))
   (setf (objects-to-delete world) '()))
 
-(defun map-objects (function world &key order (type t))
+(defun map-objects (function world &key (order :hit-test) (type t))
   (unless (type= type 'nil)
     (flet ((maybe-call-function (object)
              (when (and (typep object type)
                         (not (member object (objects-to-delete world))))
                (funcall function object))))
       (ecase order
-        ((:render :update :hit-test nil)
+        ((:render :update :hit-test)
          (loop for list across (objects world) do
                (mapc #'maybe-call-function list)))))))
 
@@ -1091,7 +1091,7 @@
    (lambda (object)
      (when (collide-p object mouse)
        (return-from pick-object object)))
-   world :order :hit-test :type 'pickable-object))
+   world :type 'pickable-object))
 
 (defclass game-window (glut:window)
   ((world :initarg :world :accessor world)
