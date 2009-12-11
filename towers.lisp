@@ -347,6 +347,74 @@
     (declare (ignore op pos world))))
 
 
+;;;; Game world
+
+(defclass world ()
+  ((objects-to-delete :initform '() :accessor objects-to-delete)
+   (objects :initform (make-array 7 :initial-element '()) :accessor objects)
+   (dim :initform (vec 100.0 100.0) :accessor dim)))
+
+(defun make-world ()
+  (make-instance 'world))
+
+(defun add-object (object world)
+  (push object (aref (objects world) (object-list-index object))))
+
+(defun object-list-index (object)
+  (typecase object
+    (tower-control 6)
+    (player 5)
+    (message 4)
+    (projectile 3)
+    (enemy 2)
+    (tower 1)
+    (t 0)))
+
+(defun remove-object (object world)
+  (push object (objects-to-delete world)))
+
+(defun expunge-objects (world)
+  (dolist (object (objects-to-delete world))
+    (deletef (aref (objects world) (object-list-index object))
+             object :count 1))
+  (setf (objects-to-delete world) '()))
+
+(defun map-objects (function world &key (order :hit-test) (type t))
+  (unless (type= type 'nil)
+    (flet ((maybe-call-function (object)
+             (when (and (typep object type)
+                        (not (member object (objects-to-delete world))))
+               (funcall function object))))
+      (ecase order
+        ((:render :update :hit-test)
+         (loop for list across (objects world) do
+               (mapc #'maybe-call-function list)))))))
+
+(defmethod update ((w world) tick world)
+  (declare (ignore world))
+  (map-objects (lambda (object)
+                 (update object tick w))
+               w :order :update)
+  (expunge-objects w))
+
+(defmethod render ((w world))
+  (map-objects (lambda (object)
+                 (render object)
+                 (when (typep object *draw-collision-circle-for-type*)
+                   (gl:with-pushed-matrix
+                     (with-vec (x y (pos object))
+                       (gl:translate x y 0.0))
+                     (gl:color 1.0 0.0 0.0)
+                     (draw-circle (collision-radius object)))))
+               w :order :render))
+
+(defun player (world)
+  (first (aref (objects world) 5)))
+
+(defun tower-control (world)
+  (first (aref (objects world) 6)))
+
+
 ;;;; Player
 
 (defclass player ()
@@ -914,74 +982,6 @@
                 (gl:vertex -1.0 0.0)
                 (gl:vertex +1.0 0.0)
                 (gl:vertex  0.0 1.0)))))))))
-
-
-;;;; Game world
-
-(defclass world ()
-  ((objects-to-delete :initform '() :accessor objects-to-delete)
-   (objects :initform (make-array 7 :initial-element '()) :accessor objects)
-   (dim :initform (vec 100.0 100.0) :accessor dim)))
-
-(defun make-world ()
-  (make-instance 'world))
-
-(defun add-object (object world)
-  (push object (aref (objects world) (object-list-index object))))
-
-(defun object-list-index (object)
-  (typecase object
-    (tower-control 6)
-    (player 5)
-    (message 4)
-    (projectile 3)
-    (enemy 2)
-    (tower 1)
-    (t 0)))
-
-(defun remove-object (object world)
-  (push object (objects-to-delete world)))
-
-(defun expunge-objects (world)
-  (dolist (object (objects-to-delete world))
-    (deletef (aref (objects world) (object-list-index object))
-             object :count 1))
-  (setf (objects-to-delete world) '()))
-
-(defun map-objects (function world &key (order :hit-test) (type t))
-  (unless (type= type 'nil)
-    (flet ((maybe-call-function (object)
-             (when (and (typep object type)
-                        (not (member object (objects-to-delete world))))
-               (funcall function object))))
-      (ecase order
-        ((:render :update :hit-test)
-         (loop for list across (objects world) do
-               (mapc #'maybe-call-function list)))))))
-
-(defmethod update ((w world) tick world)
-  (declare (ignore world))
-  (map-objects (lambda (object)
-                 (update object tick w))
-               w :order :update)
-  (expunge-objects w))
-
-(defmethod render ((w world))
-  (map-objects (lambda (object)
-                 (render object)
-                 (when (typep object *draw-collision-circle-for-type*)
-                   (gl:with-pushed-matrix
-                     (with-vec (x y (pos object))
-                       (gl:translate x y 0.0))
-                     (gl:color 1.0 0.0 0.0)
-                     (draw-circle (collision-radius object)))))
-               w :order :render))
-
-(defun player (world)
-  (first (aref (objects world) 5)))
-
-(defun tower-control (world)
-  (first (aref (objects world) 6)))
 
 
 ;;;; Levels
