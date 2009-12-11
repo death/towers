@@ -958,15 +958,15 @@
                w :order :update))
 
 (defmethod render ((w world))
-  (map-objects #'render w :order :render)
-  (map-objects
-   (lambda (object)
-     (gl:with-pushed-matrix
-       (with-vec (x y (pos object))
-         (gl:translate x y 0.0))
-       (gl:color 1.0 0.0 0.0)
-       (draw-circle (collision-radius object))))
-   w :order :render :type *draw-collision-circle-for-type*))
+  (map-objects (lambda (object)
+                 (render object)
+                 (when (typep object *draw-collision-circle-for-type*)
+                   (gl:with-pushed-matrix
+                     (with-vec (x y (pos object))
+                       (gl:translate x y 0.0))
+                     (gl:color 1.0 0.0 0.0)
+                     (draw-circle (collision-radius object)))))
+               w :order :render))
 
 (defun player (world)
   (first (aref (objects world) 5)))
