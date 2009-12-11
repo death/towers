@@ -919,7 +919,8 @@
 ;;;; Game world
 
 (defclass world ()
-  ((objects :initform (make-array 7 :initial-element '()) :accessor objects)
+  ((objects-to-delete :initform '() :accessor objects-to-delete)
+   (objects :initform (make-array 7 :initial-element '()) :accessor objects)
    (dim :initform (vec 100.0 100.0) :accessor dim)))
 
 (defun make-world ()
@@ -939,12 +940,19 @@
     (t 0)))
 
 (defun remove-object (object world)
-  (deletef (aref (objects world) (object-list-index object)) object :count 1))
+  (push object (objects-to-delete world)))
+
+(defun expunge-objects (world)
+  (dolist (object (objects-to-delete world))
+    (deletef (aref (objects world) (object-list-index object))
+             object :count 1))
+  (setf (objects-to-delete world) '()))
 
 (defun map-objects (function world &key order (type t))
   (unless (type= type 'nil)
     (flet ((maybe-call-function (object)
-             (when (typep object type)
+             (when (and (typep object type)
+                        (not (member object (objects-to-delete world))))
                (funcall function object))))
       (ecase order
         ((:render :update :hit-test nil)
@@ -955,7 +963,8 @@
   (declare (ignore world))
   (map-objects (lambda (object)
                  (update object tick w))
-               w :order :update))
+               w :order :update)
+  (expunge-objects w))
 
 (defmethod render ((w world))
   (map-objects (lambda (object)
