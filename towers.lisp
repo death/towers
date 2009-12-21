@@ -1174,6 +1174,21 @@
       (gl:vertex +2.0 +2.0)
       (gl:vertex -2.0 +2.0))))
 
+(defclass sqarry (enemy)
+  ((angle :initform 0.0 :accessor angle))
+  (:default-initargs :collision-radius 2 :explosion-color (list 0.8 0.3 0.4)))
+
+(defmethod update :after ((sq sqarry))
+  (setf (angle sq) (mod+ (angle sq) -2.0 360.0)))
+
+(defmethod render ((sq sqarry))
+  (gl:with-pushed-matrix
+    (with-vec (x y (pos sq))
+      (gl:translate x y 0.0))
+    (gl:rotate (angle sq) 0.0 0.0 1.0)
+    (apply #'gl:color (explosion-color sq))
+    (draw-star 2.0 5 2)))
+
 
 ;;;; Waves
 
