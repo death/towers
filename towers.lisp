@@ -85,6 +85,47 @@
      segments)))
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
+  (defun mod+ (n m p)
+    (mod (+ n m) p))
+  
+  (defun call-with-star-multipliers (fn points density)
+    (let ((xs (make-array points :element-type 'single-float))
+          (ys (make-array points :element-type 'single-float)))
+      (let ((i 0))
+        (call-with-circle-multipliers
+         (lambda (x y)
+           (setf (aref xs i) x)
+           (setf (aref ys i) y)
+           (incf i))
+         points))
+      (dotimes (i points)
+        (let ((j (mod+ i density points)))
+          (funcall fn
+                   (aref xs i) (aref ys i)
+                   (aref xs j) (aref ys j)))))))
+
+(define-compiler-macro draw-star (&whole form radius points density)
+  (if (and (integerp points) (integerp density))
+      (once-only (radius)
+        (let ((instructions '()))
+          (call-with-star-multipliers
+           (lambda (x1 y1 x2 y2)
+             (push `(gl:vertex (* ,x1 ,radius) (* ,y1 ,radius)) instructions)
+             (push `(gl:vertex (* ,x2 ,radius) (* ,y2 ,radius)) instructions))
+           points density)
+          `(gl:with-primitive :lines
+             ,@(nreverse instructions))))
+      form))
+
+(defun draw-star (radius points density)
+  (gl:with-primitive :lines
+    (call-with-star-multipliers
+     (lambda (x1 y1 x2 y2)
+       (gl:vertex (* x1 radius) (* y1 radius))
+       (gl:vertex (* x2 radius) (* y2 radius)))
+     points density)))
+
+(eval-when (:compile-toplevel :load-toplevel :execute)
   (defun call-with-curve-multipliers (fn &optional (segments 20))
     (funcall fn 1.0 0.0 0.0 0.0)
     (loop with step = (/ 1.0 segments)
