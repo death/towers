@@ -643,7 +643,8 @@
       (gl:color 0.2 0.5 1.0)
       (display-text 50.0 -75.0 (type-of tower))
       (display-text 50.0 -80.0 "Level ~D" (level tower))
-      (display-text 50.0 -85.0 "Upgrade (~D)" (buy-price tower))
+      (when (< (level tower) (max-level tower))
+        (display-text 50.0 -85.0 "Upgrade (~D)" (buy-price tower)))
       (display-text 50.0 -90.0 "Sell (~D)" (sell-price tower)))))
 
 (defmethod select ((control tower-control) op pos)
