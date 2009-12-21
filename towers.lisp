@@ -1353,7 +1353,7 @@
                              :path path
                              :hit-points 10
                              :cash-reward 2)))
-  (wave :start-tick 500 :wait-ticks 40 :enemies
+  (wave :start-tick 400 :wait-ticks 40 :enemies
         (loop repeat 5 collecting
               (make-instance 'sqrewy
                              :pos (vec 0.0 100.0)
@@ -1361,9 +1361,9 @@
                              :path path
                              :hit-points 15
                              :cash-reward 5)))
-  (wave :start-tick 1000 :wait-ticks 60 :enemies
+  (wave :start-tick 800 :wait-ticks 50 :enemies
         (loop repeat 10 collecting
-              (make-instance 'sqrewy
+              (make-instance 'sqarry
                              :pos (vec 0.0 100.0)
                              :speed 0.8
                              :path path
