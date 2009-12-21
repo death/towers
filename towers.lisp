@@ -89,7 +89,7 @@
                           (+ (* ,am ,ay) (* ,bm ,by) (* ,cm ,cy) (* ,dm ,dy)))
               instructions))
            segments)
-          `(progn (nreverse ,@instructions))))
+          `(progn ,@(nreverse instructions))))
       form))
 
 (defun draw-cubic-curve (ax ay bx by cx cy dx dy &optional (segments 20))
