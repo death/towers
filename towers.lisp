@@ -45,17 +45,18 @@
 (defun cosd (deg)
   (cos (rad deg)))
 
-(defun draw-circle (radius &optional (resolution 30) (filledp nil))
-  ;; http://github.com/sykopomp/until-it-dies/blob/master/src/primitives.lisp
-  ;; Stole implementation and modified it a bit
-  (let* ((theta (* 2.0 (/ single-pi resolution)))
-         (tangential-factor (tan theta))
-         (radial-factor (- 1.0 (cos theta))))
-    (gl:with-primitives (if filledp :triangle-fan :line-loop)
-      (loop with x = radius
+(eval-when (:compile-toplevel :load-toplevel :execute)
+  ;; Yes, eval-when here is a hack.. drop when splitting file
+  (defun call-with-circle-multipliers (fn &optional (segments 30))
+    ;; http://github.com/sykopomp/until-it-dies/blob/master/src/primitives.lisp
+    ;; Stole implementation of draw-circle and modified it a bit
+    (let* ((theta (* 2.0 (/ single-pi segments)))
+           (tangential-factor (tan theta))
+           (radial-factor (- 1.0 (cos theta))))
+      (loop with x = 1.0
             with y = 0.0
-            repeat resolution
-            do (gl:vertex x y)
+            repeat segments
+            do (funcall fn x y)
             (let ((tx (- y))
                   (ty x))
               (incf x (* tx tangential-factor))
@@ -64,6 +65,24 @@
                   (ry (- y)))
               (incf x (* rx radial-factor))
               (incf y (* ry radial-factor)))))))
+
+(define-compiler-macro draw-circle (&whole form radius &optional (segments 30) (filledp nil))
+  (if (integerp segments)
+      (once-only (radius)
+        (let ((instructions '()))
+          (call-with-circle-multipliers
+           (lambda (x y)
+             (push `(gl:vertex (* ,radius ,x) (* ,radius ,y)) instructions))
+           segments)
+          `(gl:with-primitives (if ,filledp :triangle-fan :line-loop)
+             ,@(nreverse instructions))))
+      form))
+      
+(defun draw-circle (radius &optional (segments 30) (filledp nil))
+  (gl:with-primitives (if filledp :triangle-fan :line-loop)
+    (call-with-circle-multipliers
+     (lambda (x y) (gl:vertex (* x radius) (* y radius)))
+     segments)))
 
 (defun call-with-curve-multipliers (fn &optional (segments 20))
   (funcall fn 1.0 0.0 0.0 0.0)
