@@ -1084,6 +1084,7 @@
    (path :initarg :path :accessor path)
    (next-pos-idx :initform 1 :accessor next-pos-idx)
    (hit-points :initarg :hit-points :accessor hit-points)
+   (max-hit-points :initarg :hit-points :accessor max-hit-points)
    (cash-reward :initarg :cash-reward :accessor cash-reward)
    (vel :initform (vec 0.0 0.0) :accessor vel)
    (explosion-color :initarg :explosion-color :accessor explosion-color)))
@@ -1110,6 +1111,20 @@
       (setf next-pos (aref vertices (next-pos-idx e))))
     (setf (vel e) (vel-vec (spd e) (vec- next-pos pos)))
     (vec+= pos (vel e))))
+
+(defmethod render :after ((e enemy))
+  (gl:with-pushed-matrix
+    (with-vec (x y (pos e))
+      (gl:translate (- x 2.0) y 0.0))
+    (let ((vs '((0.0 2.0) (4.0 2.0) (4.0 3.0) (0.0 3.0))))
+      (gl:with-pushed-matrix
+        (gl:scale (float (/ (hit-points e) (max-hit-points e))) 1.0 1.0)
+        (gl:color 0.0 1.0 0.0 0.7)
+        (gl:with-primitive :quads
+          (loop for (x y) in vs do (gl:vertex x y))))
+      (gl:color 1.0 1.0 1.0 0.5)
+      (gl:with-primitive :line-loop
+        (loop for (x y) in vs do (gl:vertex x y))))))
 
 (defun enemy-die (enemy)
   (remove-object enemy)
