@@ -275,9 +275,6 @@
    (objects :initform (make-array 7 :initial-element '()) :accessor objects)
    (tick :initform nil :accessor tick)))
 
-(defun make-world ()
-  (make-instance 'world))
-
 (defun add-object (object &optional (world *world*))
   (push object (aref (objects world) (object-list-index object))))
 
