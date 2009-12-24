@@ -254,7 +254,9 @@
   (:method (object)
     (declare (ignore object))))
 
-(defgeneric render (object))
+(defgeneric render (object)
+  (:method (object)
+    (declare (ignore object))))
 
 (defgeneric select (object op pos)
   (:method ((object null) op pos)
@@ -1056,8 +1058,6 @@
                  (>= (- tick (last-release-tick w)) (wait-ticks w)))
              (release-an-enemy w)
              (setf (last-release-tick w) tick))))))
-
-(defmethod render ((w wave)))  
 
 (defun release-an-enemy (wave)
   (add-object (pop (enemies wave))))
