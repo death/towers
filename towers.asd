@@ -8,4 +8,8 @@
 
 (asdf:defsystem #:towers
   :depends-on (#:alexandria #:cl-opengl #:cl-glu #:cl-glut)
-  :components ((:file "towers")))
+  :serial t
+  :components
+  ((:file "packages")
+   (:file "utils")
+   (:file "towers")))
