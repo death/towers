@@ -297,6 +297,11 @@
              object :count 1))
   (setf (objects-to-delete world) '()))
 
+(defun clear-objects (&optional (world *world*))
+  (dotimes (i (length (objects world)))
+    (setf (aref (objects world) i) '()))
+  (setf (objects-to-delete world) '()))
+
 (defun map-objects (function world order type)
   (unless (type= type 'nil)
     (flet ((maybe-call-function (object)
