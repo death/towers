@@ -223,7 +223,7 @@
   (or (eql a b)
       (call-next-method)))
 
-(defclass circle-collidable-object ()
+(defclass circle-collidable-object (collidable-object)
   ((collision-radius :initarg :collision-radius :accessor collision-radius)
    (pos :initarg :pos :accessor pos)))
 
