@@ -275,6 +275,16 @@
    (objects :initform (make-array 7 :initial-element '()) :accessor objects)
    (tick :initform nil :accessor tick)))
 
+(defmethod reinitialize-instance :before ((world world) &rest initargs)
+  (declare (ignore initargs))
+  (setf (tick world) nil)
+  (clear-objects world))
+
+(defun ensure-world (world-designator)
+  (etypecase world-designator
+    (symbol (make-instance world-designator))
+    (world world-designator)))
+
 (defun add-object (object &optional (world *world*))
   (push object (aref (objects world) (object-list-index object))))
 
@@ -366,7 +376,6 @@
 (defclass game-window (glut:window)
   ((world :accessor world)
    (world-generator :initarg :world-generator :accessor world-generator)
-   (world-index :initform 0 :accessor world-index)
    (time-to-next-tick :initform nil :accessor time-to-next-tick)
    (mouse :initform (make-instance 'mouse) :accessor mouse))
   (:default-initargs
@@ -375,19 +384,26 @@
    :title "Towers"
    :mode '(:double :rgb)))
 
-(defmethod initialize-instance :after ((w game-window) &rest initargs)
+(defmethod initialize-instance :after ((w game-window) &rest initargs &key world)
   (declare (ignore initargs))
-  (generate-world w))
+  (when world
+    (setf (world-generator w)
+          (let ((worlds (if (listp world)
+                            (mapcar #'ensure-world world)
+                            (list (ensure-world world)))))
+            (lambda ()
+              (pop worlds)))))
+  (next-world w))
 
 (defun find-game-window ()
   (glut:find-window 'towers))
 
 (defun next-world (&optional (w (find-game-window)))
-  (incf (world-index w))
-  (generate-world w))
+  (when (null (setf (world w) (funcall (world-generator w))))
+    (glut:destroy-current-window)))
 
-(defun generate-world (&optional (w (find-game-window)))
-  (setf (world w) (funcall (world-generator w) (world-index w))))
+(defun this-world-again (&optional (w (find-game-window)))
+  (reinitialize-instance (world w)))
 
 (defmethod tick ((w game-window))
   (tick (world w)))
@@ -500,12 +516,7 @@
 
 (defun game ()
   (glut:display-window
-   (make-instance
-    'game-window
-    :world-generator 
-    (let ((levels #(level-1 level-2)))
-      (lambda (index)
-        (make-level (aref levels (mod index (length levels)))))))))
+   (make-instance 'game-window :world '(level-1 level-2))))
 
 
 ;;;; Player
@@ -997,7 +1008,7 @@
                   :pos (vec -8.0 0.0)
                   :color '(1.0 0.0 0.0)
                   :text "GAME OVER"
-                  :action #'generate-world)))
+                  :action #'this-world-again)))
                   
 (defclass sqrewy (enemy)
   ((angle :initform 0 :accessor angle)
@@ -1129,8 +1140,6 @@
 
 ;;;; Levels
 
-(defgeneric make-level (name))
-
 (defmacro define-level (name &body objects)
   (labels ((object-name (object)
              (getf (cdr object) :named))
@@ -1143,13 +1152,16 @@
     (let ((object-names (loop for object in objects
                               when (object-name object)
                               collect it)))
-      `(defmethod make-level ((name (eql ',name)))
-         (let ((world (make-instance 'world)) ,@object-names)
-           ,@(loop for object in objects
-                   for name = (object-name object)
-                   for make = `(make-instance ',(object-class-name object) ,@(object-initargs object))
-                   collect `(add-object ,(if name `(setf ,name ,make) make) world))
-           world)))))
+      `(progn
+         (defclass ,name (world) ())
+         (defmethod shared-initialize :after ((world ,name) slot-names &rest initargs)
+           (declare (ignore slot-names initargs))
+           (let ,object-names
+             ,@(loop for object in objects
+                     for name = (object-name object)
+                     for make = `(make-instance ',(object-class-name object) ,@(object-initargs object))
+                     collect `(add-object ,(if name `(setf ,name ,make) make) world))))
+         ',name))))
 
 (define-level level-1
   (homebase :lives 2 :pos (vec -50.0 -50.0))
@@ -1260,10 +1272,10 @@
   (spliner)
   (grid))
 
-(defclass spline-editor (game-window)
+(defclass spline-editor-window (game-window)
   ((mouse :initform (make-instance 'mouse) :accessor mouse)))
 
-(defmethod glut:keyboard ((w spline-editor) key x y)
+(defmethod glut:keyboard ((w spline-editor-window) key x y)
   (let ((*world* (world w)))
     (let ((mouse (mouse w))
           (spliner (do-objects (x :type 'spliner) (return x))))
@@ -1289,8 +1301,4 @@
 
 (defun spline-editor ()
   (glut:display-window
-   (make-instance 'spline-editor
-                  :world-generator
-                  (lambda (index)
-                    (declare (ignore index))
-                    (make-level 'spline-editor)))))
+   (make-instance 'spline-editor-window :world 'spline-editor)))
