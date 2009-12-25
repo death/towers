@@ -732,15 +732,21 @@
 (defclass shooting-tower-mixin ()
   ((last-shot-tick :initform nil :accessor last-shot-tick)
    (base-fire-rate :initarg :base-fire-rate :accessor base-fire-rate)
-   (detection-radius :initarg :detection-radius :accessor detection-radius)
+   (base-detection-radius :initarg :base-detection-radius :accessor base-detection-radius)
    (draw-detection-circle :initarg :draw-detection-circle :accessor draw-detection-circle-p)
    (detection-circle-color :initform :red :accessor detection-circle-color))
   (:default-initargs :draw-detection-circle nil))
 
+(defun level-multiplier (level max-level &optional (scale 1.0) (add 1.0))
+  (+ add (* scale (- 1.0 (log (- max-level (1- level)) max-level)))))
+
 (defmethod fire-rate ((tower shooting-tower-mixin))
   (* (base-fire-rate tower)
-     (- 2.0 (log (- (1+ (max-level tower)) (level tower))
-                 (1+ (max-level tower))))))
+     (level-multiplier (level tower) (max-level tower))))
+
+(defmethod detection-radius ((tower shooting-tower-mixin))
+  (* (base-detection-radius tower)
+     (level-multiplier (level tower) (max-level tower))))
 
 (defgeneric fire (tower))
 
@@ -808,7 +814,7 @@
   (:default-initargs
    :base-fire-rate 2
     :collision-radius 5
-    :detection-radius 20
+    :base-detection-radius 15
     :projectile-speed 2.0))
 
 (defmethod update ((tower blaster-tower))
@@ -1173,7 +1179,7 @@
 (define-level level-1
   (homebase :lives 2 :pos (vec -50.0 -50.0))
   (path :named path :spline '(0.0 100.0 10.0 10.0 -10.0 -10.0 -50.0 -50.0))
-  (player :cash 10)
+  (player :cash 15)
   (tower-control)
   (tower-factory :kind 'blaster-tower :pos (vec -60.0 -85.0)
                  :buy-prices #(5 5 7 10 15 20 30)
