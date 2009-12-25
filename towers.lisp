@@ -743,6 +743,7 @@
 (defgeneric try-fire (tower tick))
 (defgeneric tower-projectile (tower))
 (defgeneric fire-rate (tower))
+(defgeneric detection-radius (tower))
 
 (defgeneric buy-price (object))
 (defgeneric sell-price (object))
