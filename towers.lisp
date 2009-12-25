@@ -738,7 +738,9 @@
   (:default-initargs :draw-detection-circle nil))
 
 (defmethod fire-rate ((tower shooting-tower-mixin))
-  (* (base-fire-rate tower) (level tower)))
+  (* (base-fire-rate tower)
+     (- 2.0 (log (- (1+ (max-level tower)) (level tower))
+                 (1+ (max-level tower))))))
 
 (defmethod try-fire ((tower shooting-tower-mixin) tick)
   (let ((last-shot-tick (last-shot-tick tower)))
