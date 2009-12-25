@@ -235,6 +235,29 @@
   (close-enough-p (pos a) (collision-radius a)
                   (pos b) (collision-radius b)))
 
+(defclass line-segment-collidable-object (collidable-object)
+  ((start-pos :initarg :start-pos :accessor start-pos)
+   (end-pos :initarg :end-pos :accessor end-pos)))
+
+(defun closest-point-on-segment (start-pos end-pos circle-pos)
+  (let* ((seg-v (vec- end-pos start-pos))
+         (pt-v (vec- circle-pos start-pos))
+         (seg-v-unit (unit seg-v))
+         (proj (vec-mul pt-v seg-v-unit)))
+    (cond ((<= proj 0) start-pos)
+          ((>= proj (vec-mag seg-v)) end-pos)
+          (t (vec+= (vec* seg-v-unit proj) start-pos)))))
+
+(defmethod collide-p ((a line-segment-collidable-object)
+                      (b circle-collidable-object))
+  (let* ((closest (closest-point-on-segment (start-pos a) (end-pos a) (pos b)))
+         (dist-v (vec- (pos b) closest)))
+    (<= (vec-mag dist-v) (collision-radius b))))    
+
+(defmethod collide-p ((a circle-collidable-object)
+                      (b line-segment-collidable-object))
+  (collide-p b a))
+
 
 ;;;; Game object protocol
 
@@ -298,8 +321,13 @@
     (tower 1)
     (t 0)))
 
+(defgeneric object-got-removed (object world)
+  (:method (object world)
+    (declare (ignore object world))))
+
 (defun remove-object (object &optional (world *world*))
-  (push object (objects-to-delete world)))
+  (push object (objects-to-delete world))
+  (object-got-removed object world))
 
 (defun expunge-objects (&optional (world *world*))
   (dolist (object (objects-to-delete world))
@@ -887,6 +915,99 @@
     (draw-circle 0.6)))
 
 
+;;;; Laser Tower
+
+(register-wf-object 'laser-tower "blaster.obj")
+
+(defclass laser-tower (tower shooting-tower-mixin)
+  ((angle :initform 0.0 :accessor angle)
+   (beam :initform nil :accessor beam))
+  (:default-initargs
+   :base-fire-rate 0.5
+    :collision-radius 5
+    :base-detection-radius 20))
+
+(defmethod update ((tower laser-tower))
+  (let ((enemies (detect-enemies tower)))
+    (when enemies
+      (let ((victim (some (lambda (enemy) (good-to-fire-p enemy tower)) enemies)))
+        (cond (victim
+               (try-fire tower *tick*)
+               (aim tower victim))
+              (t
+               (aim tower (best-element enemies :key (lambda (enemy) (target-angle enemy tower))))))))
+    (when (beam tower)
+      (cond ((or (> (- *tick* (last-shot-tick tower)) 15) (null enemies))
+             (remove-object (beam tower))
+             (setf (beam tower) nil))
+            (t
+             (multiple-value-bind (sp ep)
+                 (laser-beam-initial-parameters tower)
+               (setf (start-pos (beam tower)) sp)
+               (setf (end-pos (beam tower)) ep)))))))
+
+(defmethod render ((tower laser-tower))
+  (let ((wf-object (find-wf-object 'laser-tower)))
+    (gl:with-pushed-matrix
+      (with-vec (x y (pos tower))
+        (gl:translate x y 0.0))
+      (gl:color 0.2 0.4 1.0)
+      (gl:scale 1.5 1.5 1.0)
+      (gl:polygon-mode :front-and-back :line)
+      (wf-draw-part 'blaster wf-object)
+      (wf-draw-part 'inner-base wf-object)
+      (gl:rotate (angle tower) 0.0 0.0 1.0)
+      (wf-draw-part 'cannon wf-object)
+      (gl:polygon-mode :front-and-back :fill))))
+
+(defmethod object-got-removed ((tower laser-tower) world)
+  (when (beam tower)
+    (remove-object (beam tower) world)))
+
+(defmethod target-angle (enemy (tower laser-tower))
+  (normalize-deg (+ 270.0 (vec-angle (vec- (pos enemy) (pos tower))))))
+
+(defmethod aim ((tower laser-tower) enemy)
+  (let* ((aim-angle (angle tower))
+         (target-angle (target-angle enemy tower))
+         (diff (- target-angle aim-angle)))
+    (when (> diff 180.0) (decf diff 360.0))
+    (when (< diff -180.0) (incf diff 360.0))
+    (setf (angle tower)
+          (normalize-deg (+ (angle tower)
+                            (max -10.0 (min diff 10.0)))))))
+
+(defun laser-beam-initial-parameters (tower)
+  (values (vec+= (vel-vec 5.0 (- (angle tower))) (pos tower))
+          (vec+= (vel-vec 200.0 (- (angle tower))) (pos tower))))
+
+(defclass laser-beam (projectile line-segment-collidable-object)
+  ((damage :initarg :damage :accessor damage)))
+
+(defmethod tower-projectile ((tower laser-tower))
+  (multiple-value-bind (sp ep)
+      (laser-beam-initial-parameters tower)
+    (make-instance 'laser-beam :start-pos sp :end-pos ep :damage 0.5)))
+
+(defmethod fire ((tower laser-tower))
+  (when (null (beam tower))
+    (add-object (setf (beam tower) (tower-projectile tower)))))
+
+(defmethod update ((beam laser-beam))
+  (when-let (enemies (projectile-hit-list beam))
+    (dolist (enemy enemies)
+      (enemy-take-damage enemy (damage beam)))))
+
+(defmethod render ((beam laser-beam))
+  (gl:with-pushed-matrix
+    (gl:color 1.0 1.0 1.0)
+    (gl:with-primitive :lines
+      (with-vec (x y (start-pos beam))
+        (gl:vertex x y))
+      (with-vec (x y (end-pos beam))
+        (gl:vertex x y)))))
+
+
 ;;;; Tower factory
 
 (defclass tower-factory (draggable-object circle-collidable-object)
@@ -1216,11 +1337,14 @@
                               39.625 -67.125 1.875 -6.125 23.625 34.625
                               46.125 64.625 62.875 118.875 15.125 60.125
                               -36.375 13.125 -61.875 -32.875 -26.125 -57.375 -49.375))
-  (player :cash 20)
+  (player :cash 30)
   (tower-control)
   (tower-factory :kind 'blaster-tower :pos (vec -60.0 -85.0)
                  :buy-prices #(5 5 7 10 15 20 30)
                  :sell-prices #(0 2 5 7 10 15 25 35))
+  (tower-factory :kind 'laser-tower :pos (vec -40.0 -85.0)
+                 :buy-prices #(15 15 20 25 30 40 55)
+                 :sell-prices #(0 10 15 20 25 30 40 55))
   (wave :start-tick 100 :wait-ticks 50 :enemies
         (loop repeat 10 collecting
               (make-instance 'sqrewy
