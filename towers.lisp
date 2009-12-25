@@ -777,21 +777,13 @@
       (collect enemy))))
 
 (defgeneric target-angle (enemy tower))
+(defgeneric aim (tower enemy))
 
 (defun good-to-fire-p (enemy tower)
   (let ((aim-angle (angle tower))
         (target-angle (target-angle enemy tower)))
-    (< (abs (- aim-angle target-angle)) 4.0)))
-
-(defun aim (tower enemy)
-  (let* ((aim-angle (angle tower))
-         (target-angle (target-angle enemy tower))
-         (diff (- target-angle aim-angle)))
-    (when (> diff 180.0) (decf diff 360.0))
-    (when (< diff -180.0) (incf diff 360.0))
-    (setf (angle tower)
-          (normalize-deg (+ (angle tower)
-                            (max -10.0 (min diff 10.0)))))))
+    (when (< (abs (- aim-angle target-angle)) 4.0)
+      enemy)))
 
 (defclass projectile (collidable-object)
   ())
@@ -817,9 +809,12 @@
 
 (defmethod update ((tower blaster-tower))
   (when-let (enemies (detect-enemies tower))
-    (when (some (lambda (enemy) (good-to-fire-p enemy tower)) enemies)
-      (try-fire tower *tick*))
-    (aim tower (best-element enemies :key (lambda (enemy) (target-angle enemy tower))))))
+    (let ((victim (some (lambda (enemy) (good-to-fire-p enemy tower)) enemies)))
+      (cond (victim
+             (try-fire tower *tick*)
+             (aim tower victim))
+            (t
+             (aim tower (best-element enemies :key (lambda (enemy) (target-angle enemy tower)))))))))
 
 (defmethod render ((tower blaster-tower))
   (let ((wf-object (find-wf-object 'blaster-tower)))
@@ -847,6 +842,9 @@
       (let* ((tc (/ (vec-distance pe pp) (vec-distance vp ve)))
              (pe-prime (vec+= (vec* ve tc) pe)))
         (normalize-deg (+ 270.0 (vec-angle (vec- pe-prime (pos tower)))))))))
+
+(defmethod aim ((tower blaster-tower) enemy)
+  (setf (angle tower) (target-angle enemy tower)))
 
 (defclass blaster-projectile (projectile circle-collidable-object)
   ((damage :initarg :damage :accessor damage)
