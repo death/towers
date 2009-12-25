@@ -742,11 +742,13 @@
      (- 2.0 (log (- (1+ (max-level tower)) (level tower))
                  (1+ (max-level tower))))))
 
+(defgeneric fire (tower))
+
 (defmethod try-fire ((tower shooting-tower-mixin) tick)
   (let ((last-shot-tick (last-shot-tick tower)))
     (when (or (null last-shot-tick)
               (>= (- tick last-shot-tick) (floor *frames-per-second* (fire-rate tower))))
-      (add-object (tower-projectile tower))
+      (fire tower)
       (setf (last-shot-tick tower) tick))))
 
 (defmethod render :after ((tower shooting-tower-mixin))
@@ -857,6 +859,9 @@
   (multiple-value-bind (pp vp)
       (blaster-projectile-initial-parameters tower)
     (make-instance 'blaster-projectile :pos pp :vel vp :damage 1)))
+
+(defmethod fire ((tower blaster-tower))
+  (add-object (tower-projectile tower)))
 
 (defmethod update ((proj blaster-projectile))
   (vec+= (pos proj) (vel proj))
