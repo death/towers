@@ -759,23 +759,16 @@
         (:green (gl:color 0.0 1.0 0.0 0.2)))
       (draw-circle (detection-radius tower) 30 t))))
 
-(register-wf-object 'blaster-tower "blaster.obj")
-
-(defclass blaster-tower (tower shooting-tower-mixin)
-  ((angle :initform 0.0 :accessor angle)
-   (projectile-speed :initarg :projectile-speed :accessor projectile-speed))
-  (:default-initargs
-   :base-fire-rate 2
-    :collision-radius 5
-    :detection-radius 20
-    :projectile-speed 2.0))
-
-(defmethod update ((tower blaster-tower))
-  (let ((enemies (detect-enemies tower)))
-    (when enemies
-      (when (some (lambda (enemy) (good-to-fire-p enemy tower)) enemies)
-        (try-fire tower *tick*))
-      (aim tower (best-element enemies :key (lambda (enemy) (target-angle enemy tower)))))))
+(defmethod select ((tower shooting-tower-mixin) op pos)
+  (declare (ignore pos))
+  (ecase op
+    (:obtain
+     (setf (draw-detection-circle-p tower) t)
+     (setf (tower (tower-control)) tower))
+    (:release
+     (setf (tower (tower-control)) nil)
+     (setf (draw-detection-circle-p tower) nil))
+    (:move)))
 
 (defun detect-enemies (tower)
   (do-objects (enemy :type 'enemy :collecting t)
@@ -783,17 +776,7 @@
                           (pos tower) (detection-radius tower))
       (collect enemy))))
 
-(defgeneric projectile-initial-position (tower))
-(defgeneric projectile-initial-velocity (tower))
-
-(defun target-angle (enemy tower)
-  (let ((pe (pos enemy))
-        (ve (vel enemy))
-        (pp (projectile-initial-position tower))
-        (vp (projectile-initial-velocity tower)))
-    (let* ((tc (/ (vec-distance pe pp) (vec-distance vp ve)))
-           (pe-prime (vec+= (vec* ve tc) pe)))
-      (normalize-deg (+ 270.0 (vec-angle (vec- pe-prime (pos tower))))))))
+(defgeneric target-angle (enemy tower))
 
 (defun good-to-fire-p (enemy tower)
   (let ((aim-angle (angle tower))
@@ -810,6 +793,34 @@
           (normalize-deg (+ (angle tower)
                             (max -10.0 (min diff 10.0)))))))
 
+(defclass projectile (collidable-object)
+  ())
+
+(defun projectile-hit-list (projectile)
+  (do-objects (enemy :type 'enemy :collecting t)
+    (when (collide-p projectile enemy)
+      (collect enemy))))
+
+
+;;;; Blaster Tower
+
+(register-wf-object 'blaster-tower "blaster.obj")
+
+(defclass blaster-tower (tower shooting-tower-mixin)
+  ((angle :initform 0.0 :accessor angle)
+   (projectile-speed :initarg :projectile-speed :accessor projectile-speed))
+  (:default-initargs
+   :base-fire-rate 2
+    :collision-radius 5
+    :detection-radius 20
+    :projectile-speed 2.0))
+
+(defmethod update ((tower blaster-tower))
+  (when-let (enemies (detect-enemies tower))
+    (when (some (lambda (enemy) (good-to-fire-p enemy tower)) enemies)
+      (try-fire tower *tick*))
+    (aim tower (best-element enemies :key (lambda (enemy) (target-angle enemy tower))))))
+
 (defmethod render ((tower blaster-tower))
   (let ((wf-object (find-wf-object 'blaster-tower)))
     (gl:with-pushed-matrix
@@ -824,44 +835,38 @@
       (wf-draw-part 'cannon wf-object)
       (gl:polygon-mode :front-and-back :fill))))
 
-(defmethod select ((tower blaster-tower) op pos)
-  (declare (ignore pos))
-  (ecase op
-    (:obtain
-     (setf (draw-detection-circle-p tower) t)
-     (setf (tower (tower-control)) tower))
-    (:release
-     (setf (tower (tower-control)) nil)
-     (setf (draw-detection-circle-p tower) nil))
-    (:move)))
+(defun blaster-projectile-initial-parameters (tower)
+  (values (vec+= (vel-vec 4.0 (- (angle tower))) (pos tower))
+          (vel-vec (projectile-speed tower) (- (angle tower)))))
 
-(defclass projectile (circle-collidable-object)
-  ((vel :initarg :vel :accessor vel)))
+(defmethod target-angle (enemy (tower blaster-tower))
+  (let ((pe (pos enemy))
+        (ve (vel enemy)))
+    (multiple-value-bind (pp vp)
+        (blaster-projectile-initial-parameters tower)
+      (let* ((tc (/ (vec-distance pe pp) (vec-distance vp ve)))
+             (pe-prime (vec+= (vec* ve tc) pe)))
+        (normalize-deg (+ 270.0 (vec-angle (vec- pe-prime (pos tower)))))))))
 
-(defgeneric maybe-projectile-hit (projectile))
+(defclass blaster-projectile (projectile circle-collidable-object)
+  ((damage :initarg :damage :accessor damage)
+   (vel :initarg :vel :accessor vel))
+  (:default-initargs :collision-radius 0.5))
 
-(defmethod update ((proj projectile))
+(defmethod tower-projectile ((tower blaster-tower))
+  (multiple-value-bind (pp vp)
+      (blaster-projectile-initial-parameters tower)
+    (make-instance 'blaster-projectile :pos pp :vel vp :damage 1)))
+
+(defmethod update ((proj blaster-projectile))
   (vec+= (pos proj) (vel proj))
   (unless (vec-contains *half-world-dimensions* (pos proj))
     (remove-object proj)
     (return-from update))
-  (maybe-projectile-hit proj))
-
-(defclass blaster-projectile (projectile)
-  ((damage :initarg :damage :accessor damage))
-  (:default-initargs :collision-radius 0.5))
-
-(defmethod projectile-initial-position ((tower blaster-tower))
-  (vec+= (vel-vec 4.0 (- (angle tower))) (pos tower)))
-
-(defmethod projectile-initial-velocity ((tower blaster-tower))
-  (vel-vec (projectile-speed tower) (- (angle tower))))
-
-(defmethod tower-projectile ((tower blaster-tower))
-  (make-instance 'blaster-projectile
-                 :pos (projectile-initial-position tower)
-                 :vel (projectile-initial-velocity tower)
-                 :damage 1))
+  (when-let (enemies (projectile-hit-list proj))
+    (dolist (enemy enemies)
+      (enemy-take-damage enemy (damage proj)))
+    (remove-object proj)))
 
 (defmethod render ((proj blaster-projectile))
   (gl:with-pushed-matrix
@@ -870,23 +875,8 @@
     (gl:color 0.0 1.0 0.0)
     (draw-circle 0.6)))
 
-(defmethod maybe-projectile-hit ((proj blaster-projectile))
-  (let ((hit nil))
-    (do-objects (enemy :type 'enemy)
-      (when (collide-p proj enemy)
-        (setf hit t)
-        (when (<= (decf (hit-points enemy) (damage proj)) 0)
-          (enemy-kill enemy))))
-    (when hit
-      (remove-object proj))))
-
-(defun enemy-kill (enemy)
-  (incf (cash (player)) (cash-reward enemy))
-  (add-object (make-instance 'explosion
-                             :number-of-particles 100
-                             :color (explosion-color enemy)
-                             :center (pos enemy)))
-  (enemy-die enemy))
+
+;;;; Tower factory
 
 (defclass tower-factory (draggable-object circle-collidable-object)
   ((buy-prices :initarg :buy-prices :accessor buy-prices)
@@ -988,6 +978,18 @@
 (defun enemy-die (enemy)
   (remove-object enemy)
   (maybe-win-level))
+
+(defun enemy-kill (enemy)
+  (incf (cash (player)) (cash-reward enemy))
+  (add-object (make-instance 'explosion
+                             :number-of-particles 100
+                             :color (explosion-color enemy)
+                             :center (pos enemy)))
+  (enemy-die enemy))
+
+(defun enemy-take-damage (enemy damage)
+  (when (<= (decf (hit-points enemy) damage) 0)
+    (enemy-kill enemy)))
 
 (defun maybe-win-level ()
   (flet ((no-win () (return-from maybe-win-level)))
