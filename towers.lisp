@@ -651,24 +651,14 @@
                                   (+ (* am ay) (* bm by) (* cm cy) (* dm dy)))))
    'vector))
 
-(defparameter *path-collision-radius* 3)
-
-(defmethod collide-p ((a path) (b path))
-  (some (lambda (va)
-          (some (lambda (vb)
-                  (close-enough-p va *path-collision-radius*
-                                  vb *path-collision-radius*))
-                (vertices b)))
-        (vertices a)))
-
 (defmethod collide-p ((a path) (b circle-collidable-object))
   (collide-p b a))
 
 (defmethod collide-p ((a circle-collidable-object) (b path))
-  (some (lambda (v)
-          (close-enough-p (pos a) (collision-radius a)
-                          v *path-collision-radius*))
-        (vertices b)))
+  (loop for i from 0 below (1- (length (vertices b)))
+        for v1 = (aref (vertices b) i)
+        for v2 = (aref (vertices b) (1+ i))
+        thereis (segment-collides-with-circle-p v1 v2 (pos a) (collision-radius a))))
 
 
 ;;;; Message
