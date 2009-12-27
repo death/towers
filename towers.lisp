@@ -665,45 +665,6 @@
         thereis (segment-collides-with-circle-p v1 v2 (pos a) (collision-radius a))))
 
 
-;;;; Message
-
-(defclass message (clickable-object)
-  ((pos :initarg :pos :accessor pos)
-   (color :initarg :color :accessor color)
-   (text :initarg :text :accessor text)
-   (action :initarg :action :accessor action))
-  (:default-initargs :action #'nothing))
-
-(defmethod render ((m message))
-  (gl:with-pushed-matrix
-    (apply #'gl:color (color m))
-    (with-vec (x y (pos m))
-      (display-text x y "~A" (text m)))))
-
-(defmethod collide-p ((message message) (mouse mouse))
-  t)
-
-(defmethod collide-p ((mouse mouse) (message message))
-  t)
-
-(defmethod collide-p ((message message) object)
-  (declare (ignore object))
-  nil)
-
-(defmethod collide-p (object (message message))
-  (declare (ignore object))
-  nil)
-
-(defmethod select ((m message) op pos)
-  (declare (ignore pos))
-  (ecase op
-    (:obtain
-     (remove-object m)
-     (funcall (action m)))
-    (:release)
-    (:move)))
-
-
 ;;;; Homebase
 
 (register-wf-object 'homebase "homebase.obj")
@@ -1267,6 +1228,51 @@
                    (gl:vertex +1.0 0.0)
                    (gl:vertex  0.0 1.0))))))
       (map nil #'render-particle (particles e)))))
+
+
+;;;; Message
+
+(defclass message (clickable-object)
+  ((pos :initarg :pos :accessor pos)
+   (color :initarg :color :accessor color)
+   (text :initarg :text :accessor text)
+   (action :initarg :action :accessor action))
+  (:default-initargs :action #'nothing))
+
+(defmethod render ((m message))
+  (gl:with-pushed-matrix
+    (apply #'gl:color (color m))
+    (with-vec (x y (pos m))
+      (display-text x y "~A" (text m)))))
+
+(defmethod collide-p ((message message) (mouse mouse))
+  t)
+
+(defmethod collide-p ((mouse mouse) (message message))
+  t)
+
+(defmethod collide-p ((message message) (tower tower))
+  t)
+
+(defmethod collide-p ((tower tower) (message message))
+  t)
+
+(defmethod collide-p ((message message) object)
+  (declare (ignore object))
+  nil)
+
+(defmethod collide-p (object (message message))
+  (declare (ignore object))
+  nil)
+
+(defmethod select ((m message) op pos)
+  (declare (ignore pos))
+  (ecase op
+    (:obtain
+     (remove-object m)
+     (funcall (action m)))
+    (:release)
+    (:move)))
 
 
 ;;;; Levels
