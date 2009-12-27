@@ -10,6 +10,7 @@
 (defparameter *frames-per-second* 30)
 (defparameter *tick-duration* (floor 1000 *frames-per-second*))
 (defparameter *draw-collision-circle-for-type* 'nil)
+(defparameter *draw-tick* nil)
 
 (defparameter *data-directory*
   (let ((pathname (make-pathname :directory '(:relative "data"))))
@@ -383,7 +384,10 @@
           (with-vec (x y (pos object))
             (gl:translate x y 0.0))
           (gl:color 1.0 0.0 0.0)
-          (draw-circle (collision-radius object)))))))
+          (draw-circle (collision-radius object)))))
+    (when *draw-tick*
+      (gl:color 1.0 1.0 1.0)
+      (display-text -98.0 95.0 (tick w)))))
 
 (defun player (&optional (world *world*))
   (first (aref (objects world) 4)))
