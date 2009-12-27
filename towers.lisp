@@ -248,11 +248,13 @@
           ((>= proj (vec-mag seg-v)) end-pos)
           (t (vec+= (vec* seg-v-unit proj) start-pos)))))
 
+(defun segment-collides-with-circle-p (start-pos end-pos circle-pos circle-radius)
+  (let ((closest (closest-point-on-segment start-pos end-pos circle-pos)))
+    (<= (vec-mag (vec- circle-pos closest)) circle-radius)))
+
 (defmethod collide-p ((a line-segment-collidable-object)
                       (b circle-collidable-object))
-  (let* ((closest (closest-point-on-segment (start-pos a) (end-pos a) (pos b)))
-         (dist-v (vec- (pos b) closest)))
-    (<= (vec-mag dist-v) (collision-radius b))))    
+  (segment-collides-with-circle-p (start-pos a) (end-pos a) (pos b) (collision-radius b)))
 
 (defmethod collide-p ((a circle-collidable-object)
                       (b line-segment-collidable-object))
