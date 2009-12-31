@@ -993,7 +993,8 @@
 (defmethod select ((factory tower-factory) op pos)
   (with-slots (new-tower) factory
     (flet ((can-place-here-p ()
-             (do-objects (object :type '(and collidable-object (not projectile)))
+             (do-objects (object :type '(and collidable-object
+                                         (not projectile) (not enemy)))
                (when (collide-p new-tower object)
                  (return-from can-place-here-p nil)))
              t))
