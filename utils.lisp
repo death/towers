@@ -150,3 +150,10 @@
 
 (defun nothing (&rest whatever)
   (declare (ignore whatever)))
+
+(defmacro define-symmetric (name ((a class1) (b class2)) &body forms)
+  `(progn
+     (defmethod ,name ((,a ,class1) (,b ,class2)) ,@forms)
+     ,@(unless (equal class1 class2)
+         `((defmethod ,name ((,b ,class2) (,a ,class1)) (,name ,a ,b))))
+     ',name))

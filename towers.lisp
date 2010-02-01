@@ -231,8 +231,8 @@
 (defun close-enough-p (pa ra pb rb)
   (< (vec-distance-sq pa pb) (square (+ ra rb))))
 
-(defmethod collide-p ((a circle-collidable-object)
-                      (b circle-collidable-object))
+(define-symmetric collide-p ((a circle-collidable-object)
+                             (b circle-collidable-object))
   (close-enough-p (pos a) (collision-radius a)
                   (pos b) (collision-radius b)))
 
@@ -253,13 +253,10 @@
   (let ((closest (closest-point-on-segment start-pos end-pos circle-pos)))
     (<= (vec-mag (vec- circle-pos closest)) circle-radius)))
 
-(defmethod collide-p ((a line-segment-collidable-object)
-                      (b circle-collidable-object))
+(define-symmetric collide-p ((a line-segment-collidable-object)
+                             (b circle-collidable-object))
   (segment-collides-with-circle-p (start-pos a) (end-pos a) (pos b) (collision-radius b)))
 
-(defmethod collide-p ((a circle-collidable-object)
-                      (b line-segment-collidable-object))
-  (collide-p b a))
 
 
 ;;;; Game object protocol
@@ -655,10 +652,7 @@
                                   (+ (* am ay) (* bm by) (* cm cy) (* dm dy)))))
    'vector))
 
-(defmethod collide-p ((a path) (b circle-collidable-object))
-  (collide-p b a))
-
-(defmethod collide-p ((a circle-collidable-object) (b path))
+(define-symmetric collide-p ((a circle-collidable-object) (b path))
   (loop for i from 0 below (1- (length (vertices b)))
         for v1 = (aref (vertices b) i)
         for v2 = (aref (vertices b) (1+ i))
@@ -1246,24 +1240,13 @@
     (with-vec (x y (pos m))
       (display-text x y "~A" (text m)))))
 
-(defmethod collide-p ((message message) (mouse mouse))
+(define-symmetric collide-p ((message message) (mouse mouse))
   t)
 
-(defmethod collide-p ((mouse mouse) (message message))
+(define-symmetric collide-p ((message message) (tower tower))
   t)
 
-(defmethod collide-p ((message message) (tower tower))
-  t)
-
-(defmethod collide-p ((tower tower) (message message))
-  t)
-
-(defmethod collide-p ((message message) object)
-  (declare (ignore object))
-  nil)
-
-(defmethod collide-p (object (message message))
-  (declare (ignore object))
+(define-symmetric collide-p ((message message) (object t))
   nil)
 
 (defmethod select ((m message) op pos)
