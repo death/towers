@@ -317,7 +317,8 @@
     (world world-designator)))
 
 (defun add-object (object &optional (world *world*))
-  (push object (aref (objects world) (object-list-index object))))
+  (push object (aref (objects world) (object-list-index object)))
+  (object-got-added object world))
 
 (defun object-list-index (object)
   (typecase object
@@ -330,6 +331,10 @@
     (t 0)))
 
 (defgeneric object-got-removed (object world)
+  (:method (object world)
+    (declare (ignore object world))))
+
+(defgeneric object-got-added (object world)
   (:method (object world)
     (declare (ignore object world))))
 
