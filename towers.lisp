@@ -486,15 +486,23 @@
           (let ((worlds (if (listp world)
                             (mapcar #'ensure-world world)
                             (list (ensure-world world)))))
-            (lambda ()
-              (pop worlds)))))
+            (lambda (relation)
+              (ecase relation
+                (:next (pop worlds))
+                (:outer nil))))))
   (next-world w))
 
 (defun find-game-window ()
   (glut:find-window 'towers))
 
 (defun next-world (&optional (w (find-game-window)))
-  (when (null (setf (world w) (funcall (world-generator w))))
+  (generate-world :next w))
+
+(defun outer-world (&optional (w (find-game-window)))
+  (generate-world :outer w))
+
+(defun generate-world (relation &optional (w (find-game-window)))
+  (when (null (setf (world w) (funcall (world-generator w) relation)))
     (glut:destroy-current-window)))
 
 (defun this-world-again (&optional (w (find-game-window)))
@@ -532,7 +540,7 @@
 (defmethod glut:keyboard ((w game-window) key x y)
   (declare (ignore x y))
   (case key
-    (#\Esc (glut:destroy-current-window))))
+    (#\Esc (outer-world w))))
 
 (defmethod glut:motion ((w game-window) x y)
   (let ((*world* (world w)))
@@ -616,7 +624,10 @@
 
 (defun game ()
   (glut:display-window
-   (make-instance 'game-window :world '(level-1 level-2 level-3))))
+   (make-instance 'game-window
+                  :world-generator
+                  (make-menu-world-generator
+                   '(welcome-stranger starlazer evil-lambda)))))
 
 
 ;;;; Player
@@ -686,6 +697,59 @@
        (funcall (action button))))
     (:release)
     (:move)))
+
+
+;;;; Menu
+
+(defclass menu (world)
+  ((levels :initarg :levels :accessor levels)
+   (level-queue :initform '() :accessor level-queue)))
+
+(defmethod shared-initialize :after ((menu menu) slot-names &rest initargs)
+  (declare (ignore slot-names initargs))
+  (let* ((pos (vec -50.0 55.0))
+         (top-left (vec+= (vec -3.0 4.0) pos))
+         (bottom-right (vec+= (vec 103.0 -3.0) pos))
+         (inc (vec 0.0 -8.0)))
+    (flet ((add-button (text action color hover-color)
+             (add-object
+              (make-instance 'button
+                             :pos (copy-vec pos)
+                             :top-left (copy-vec top-left)
+                             :bottom-right (copy-vec bottom-right)
+                             :color color
+                             :hover-color hover-color
+                             :text text
+                             :action action
+                             :border :rectangle)
+              menu)
+             (vec+= pos inc)
+             (vec+= top-left inc)
+             (vec+= bottom-right inc)))
+      (loop for sublevels on (levels menu) do
+            (add-button (princ-to-string (first sublevels))
+                        (let ((sublevels sublevels))
+                          (lambda ()
+                            (setf (level-queue menu) sublevels)
+                            (next-world)))
+                        '(0.3 0.7 0.3) '(0.3 1.0 0.5)))
+      (add-button "BYEBYE" #'outer-world
+                  '(0.7 0.0 0.0) '(1.0 0.0 0.0)))))
+
+(defun make-menu-world-generator (levels)
+  (let ((menu (make-instance 'menu :levels levels))
+        (last-world nil))
+    (lambda (relation)
+      (setf last-world
+            (ecase relation
+              (:next
+               (if (endp (level-queue menu))
+                   menu
+                   (ensure-world (pop (level-queue menu)))))
+              (:outer
+               (if (eq last-world menu)
+                   nil
+                   menu)))))))
 
 
 ;;;; Tower control
@@ -1410,7 +1474,7 @@
                      collect `(add-object ,(if name `(setf ,name ,make) make) world))))
          ',name))))
 
-(define-level level-1
+(define-level welcome-stranger
   (homebase :lives 2 :pos (vec -50.0 -50.0))
   (path :named path :spline '(0.0 100.0 10.0 10.0 -10.0 -10.0 -50.0 -50.0))
   (player :cash 15)
@@ -1444,7 +1508,7 @@
                              :cash-reward 5)))
   (grid))
 
-(define-level level-2
+(define-level starlazer
   (homebase :lives 5 :pos (vec -57.375 -49.375))
   (path :named path :spline '(0.0 100.0 14.125 74.375 -44.625 69.125 -57.375
                               39.625 -67.125 1.875 -6.125 23.625 34.625
@@ -1484,7 +1548,7 @@
                              :cash-reward 10)))
   (grid))
 
-(define-level level-3
+(define-level evil-lambda
   (homebase :lives 1 :pos (vec 64.5 -33.25))
   (path :named path :vertices
         (let ((vertices
