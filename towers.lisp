@@ -265,6 +265,36 @@
                              (b circle-collidable-object))
   (segment-collides-with-circle-p (start-pos a) (end-pos a) (pos b) (collision-radius b)))
 
+(defclass box-collidable-object (collidable-object)
+  ((top-left :initarg :top-left :accessor top-left)
+   (bottom-right :initarg :bottom-right :accessor bottom-right)))
+
+(defun box-collides-with-point-p (top-left bottom-right pos)
+  (with-vec (x1 y1 top-left)
+    (with-vec (x2 y2 bottom-right)
+      (with-vec (x y pos)
+        (and (<= x1 x x2)
+             (<= y2 y y1))))))
+
+(define-symmetric collide-p ((a box-collidable-object)
+                             (b point-collidable-object))
+  (box-collides-with-point-p (top-left a) (bottom-right a) (pos b)))
+
+(define-symmetric collide-p ((a box-collidable-object)
+                             (b circle-collidable-object))
+  (or (box-collides-with-point-p (top-left a) (bottom-right a) (pos b))
+      (with-vec (x1 y1 (top-left a))
+        (with-vec (x2 y2 (bottom-right a))
+          (let ((tl (top-left a))
+                (tr (vec x2 y1))
+                (bl (vec x1 y2))
+                (br (bottom-right a))
+                (cp (pos b))
+                (cr (collision-radius b)))
+            (or (segment-collides-with-circle-p tl tr cp cr)
+                (segment-collides-with-circle-p tl bl cp cr)
+                (segment-collides-with-circle-p br tr cp cr)
+                (segment-collides-with-circle-p br bl cp cr)))))))
 
 
 ;;;; Game object protocol
