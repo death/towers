@@ -224,6 +224,9 @@
   (or (eql a b)
       (call-next-method)))
 
+(defclass point-collidable-object (collidable-object)
+  ((pos :initarg :pos :accessor pos)))
+
 (defclass circle-collidable-object (collidable-object)
   ((collision-radius :initarg :collision-radius :accessor collision-radius)
    (pos :initarg :pos :accessor pos)))
@@ -235,6 +238,11 @@
                              (b circle-collidable-object))
   (close-enough-p (pos a) (collision-radius a)
                   (pos b) (collision-radius b)))
+
+(define-symmetric collide-p ((a circle-collidable-object)
+                             (b point-collidable-object))
+  (close-enough-p (pos a) (collision-radius a)
+                  (pos b) 1))
 
 (defclass line-segment-collidable-object (collidable-object)
   ((start-pos :initarg :start-pos :accessor start-pos)
@@ -395,9 +403,9 @@
 
 ;;;; Game window
 
-(defclass mouse (circle-collidable-object)
+(defclass mouse (point-collidable-object)
   ((selection :initform nil :accessor selection))
-  (:default-initargs :pos (vec 0.0 0.0) :collision-radius 2))
+  (:default-initargs :pos (vec 0.0 0.0)))
 
 (defun pick-object (mouse)
   (do-objects (object :type 'pickable-object)
