@@ -333,7 +333,7 @@
 
 (defclass world ()
   ((objects-to-delete :initform '() :accessor objects-to-delete)
-   (objects :initform (make-array 7 :initial-element '()) :accessor objects)
+   (objects :initform (make-array 8 :initial-element '()) :accessor objects)
    (tick :initform nil :accessor tick)))
 
 (defmethod reinitialize-instance :before ((world world) &rest initargs)
@@ -352,13 +352,20 @@
 
 (defun object-list-index (object)
   (typecase object
-    (message 6)
+    (message 7)
+    (button 6)
     (tower-control 5)
     (player 4)
     (projectile 3)
     (enemy 2)
     (tower 1)
     (t 0)))
+
+(defun player (&optional (world *world*))
+  (first (aref (objects world) 4)))
+
+(defun tower-control (&optional (world *world*))
+  (first (aref (objects world) 5)))
 
 (defgeneric object-got-removed (object world)
   (:method (object world)
@@ -429,11 +436,6 @@
       (gl:color 1.0 1.0 1.0)
       (display-text -98.0 95.0 (tick w)))))
 
-(defun player (&optional (world *world*))
-  (first (aref (objects world) 4)))
-
-(defun tower-control (&optional (world *world*))
-  (first (aref (objects world) 5)))
 
 
 ;;;; Game window
@@ -626,33 +628,90 @@
   (remove-object tower))
 
 
+;;;; Button
+
+(defclass button (clickable-object box-collidable-object)
+  ((pos :initarg :pos :accessor pos)
+   (text :initarg :text :accessor text)
+   (action :initarg :action :accessor action)
+   (active-test :initarg :active-test :accessor active-test)
+   (border :initarg :border :accessor border)
+   (color :initarg :color :accessor color)
+   (hover-color :initarg :hover-color :accessor hover-color))
+  (:default-initargs
+   :active-test (constantly t) :border nil
+   :color '(1.0 1.0 1.0) :hover-color nil
+   :action #'nothing))
+
+(defmethod render ((button button))
+  (when (funcall (active-test button))
+    (gl:with-pushed-matrix
+      (apply #'gl:color
+             (cond ((and (hover-color button)
+                         (collide-p (mouse (find-game-window)) button))
+                    (hover-color button))
+                   (t (color button))))
+      (ecase (border button)
+        ((nil))
+        (:rectangle (render-collision-shape button)))
+      (with-vec (x y (pos button))
+        (let ((text (etypecase (text button)
+                      (string (text button))
+                      (function (funcall (text button))))))
+          (display-text x y "~A" text))))))
+
+(defmethod select ((button button) op pos)
+  (ecase op
+    (:obtain
+     (when (funcall (active-test button))
+       (funcall (action button))))
+    (:release)
+    (:move)))
+
+
 ;;;; Tower control
 
-(defclass tower-control (clickable-object circle-collidable-object)
-  ((tower :initarg :tower :accessor tower))
-  (:default-initargs :tower nil :collision-radius 16 :pos (vec 62.0 -82.0)))
+(defclass tower-control (clickable-object box-collidable-object)
+  ((tower :initarg :tower :accessor tower)
+   (children :initform '() :accessor children))
+  (:default-initargs :tower nil :top-left (vec 40.0 -71.0) :bottom-right (vec 95.0 -99.0)))
+
+(defmethod object-got-added ((control tower-control) world)
+  (setf (children control)
+        (list
+         (make-instance 'button
+                        :pos (vec 50.0 -86.0)
+                        :top-left (vec 47.0 -83.0) :bottom-right (vec 90.0 -88.0)
+                        :color '(0.2 0.5 1.0) :hover-color '(0.4 0.7 1.0)
+                        :text (lambda () (format nil "Upgrade (~D)" (buy-price (tower control))))
+                        :active-test (lambda ()
+                                       (when-let (tower (tower control))
+                                         (< (level tower) (max-level tower))))
+                        :action (lambda () (try-upgrade (tower control))))
+         (make-instance 'button
+                        :pos (vec 50.0 -92.0)
+                        :top-left (vec 47.0 -89.0) :bottom-right (vec 90.0 -94.0)
+                        :color '(0.2 0.5 1.0) :hover-color '(0.4 0.7 1.0)
+                        :text (lambda () (format nil "Sell (~D)" (sell-price (tower control))))
+                        :active-test (lambda () (tower control))
+                        :action (lambda () (sell (tower control))))))
+  (dolist (child (children control))
+    (add-object child world)))
+
+(defmethod object-got-removed ((control tower-control) world)
+  (dolist (child (children control))
+    (remove-object child world))
+  (setf (children control) '()))
 
 (defmethod render ((control tower-control))
   (when-let (tower (tower control))
     (gl:with-pushed-matrix
       (gl:color 0.2 0.5 1.0)
       (display-text 50.0 -75.0 (type-of tower))
-      (display-text 50.0 -80.0 "Level ~D" (level tower))
-      (when (< (level tower) (max-level tower))
-        (display-text 50.0 -85.0 "Upgrade (~D)" (buy-price tower)))
-      (display-text 50.0 -90.0 "Sell (~D)" (sell-price tower)))))
+      (display-text 50.0 -80.0 "Level ~D" (level tower)))))
 
 (defmethod select ((control tower-control) op pos)
-  (ecase op
-    (:obtain
-     (when-let (tower (tower control))
-       (with-vec (x y pos)
-         (cond ((and (>= x 50.0) (>= y -86.0) (<= y -81.0))
-                (try-upgrade tower))
-               ((and (>= x 50.0) (>= y -91.0) (<= y -86.0))
-                (sell tower))))))
-    (:release)
-    (:move)))
+  (declare (ignore op pos)))
 
 
 ;;;; Grid
