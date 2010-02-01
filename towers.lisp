@@ -9,7 +9,7 @@
 
 (defparameter *frames-per-second* 30)
 (defparameter *tick-duration* (floor 1000 *frames-per-second*))
-(defparameter *draw-collision-circle-for-type* 'nil)
+(defparameter *draw-collision-shape-for-type* 'nil)
 (defparameter *draw-tick* nil)
 
 (defparameter *data-directory*
@@ -422,20 +422,39 @@
       (update object))
     (expunge-objects)))
 
+(defgeneric render-collision-shape (object))
+
 (defmethod render ((w world))
   (let ((*world* w))
     (do-objects (object :order :render)
       (render object)
-      (when (typep object *draw-collision-circle-for-type*)
-        (gl:with-pushed-matrix
-          (with-vec (x y (pos object))
-            (gl:translate x y 0.0))
-          (gl:color 1.0 0.0 0.0)
-          (draw-circle (collision-radius object)))))
+      (when (typep object *draw-collision-shape-for-type*)
+        (gl:color 1.0 0.0 0.0)
+        (render-collision-shape object)))
     (when *draw-tick*
       (gl:color 1.0 1.0 1.0)
       (display-text -98.0 95.0 (tick w)))))
 
+(defmethod render-collision-shape ((object circle-collidable-object))
+  (gl:with-pushed-matrix
+    (with-vec (x y (pos object))
+      (gl:translate x y 0.0))
+    (draw-circle (collision-radius object))))
+
+(defmethod render-collision-shape ((object box-collidable-object))
+  (gl:with-primitive :line-loop
+    (with-vec (x1 y1 (top-left object))
+      (with-vec (x2 y2 (bottom-right object))
+        (gl:vertex x1 y1)
+        (gl:vertex x2 y1)
+        (gl:vertex x2 y2)
+        (gl:vertex x1 y2)))))
+
+(defmethod render-collision-shape ((object point-collidable-object))
+  (gl:with-pushed-matrix
+    (with-vec (x y (pos object))
+      (gl:translate x y 0.0))
+    (draw-circle 1)))
 
 
 ;;;; Game window
