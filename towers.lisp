@@ -249,13 +249,15 @@
    (end-pos :initarg :end-pos :accessor end-pos)))
 
 (defun closest-point-on-segment (start-pos end-pos circle-pos)
-  (let* ((seg-v (vec- end-pos start-pos))
-         (pt-v (vec- circle-pos start-pos))
-         (seg-v-unit (unit seg-v))
-         (proj (vec-mul pt-v seg-v-unit)))
-    (cond ((<= proj 0) start-pos)
-          ((>= proj (vec-mag seg-v)) end-pos)
-          (t (vec+= (vec* seg-v-unit proj) start-pos)))))
+  (if (vec=~ start-pos end-pos)
+      start-pos
+      (let* ((seg-v (vec- end-pos start-pos))
+             (pt-v (vec- circle-pos start-pos))
+             (seg-v-unit (unit seg-v))
+             (proj (vec-mul pt-v seg-v-unit)))
+        (cond ((<= proj 0) start-pos)
+              ((>= proj (vec-mag seg-v)) end-pos)
+              (t (vec+= (vec* seg-v-unit proj) start-pos))))))
 
 (defun segment-collides-with-circle-p (start-pos end-pos circle-pos circle-radius)
   (let ((closest (closest-point-on-segment start-pos end-pos circle-pos)))
