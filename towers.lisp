@@ -553,7 +553,7 @@
 (defmethod glut:passive-motion ((w game-window) x y)
   (let ((*world* (world w)))
     (multiple-value-bind (x y) (glu:un-project x y 0.0)
-      (vec-assign (pos (mouse w)) x (- y)))))  
+      (vec-assign (pos (mouse w)) x (- y)))))
 
 (defgeneric left-button (state mouse selected-object picked-object)
   (:method (state mouse selected-object picked-object)
@@ -1201,7 +1201,7 @@
            (vec-assign (pos new-tower) (x pos) (y pos))
            (setf (detection-circle-color new-tower)
                  (if (can-place-here-p) :green :red))))))))
-                             
+
 
 ;;;; Enemies
 
@@ -1288,7 +1288,7 @@
                   :color '(1.0 0.0 0.0)
                   :text "GAME OVER"
                   :action #'this-world-again)))
-                  
+
 (defclass sqrewy (enemy)
   ((angle :initform 0 :accessor angle)
    (dir :initform '> :accessor dir))

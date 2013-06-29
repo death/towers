@@ -60,7 +60,7 @@
            (loop for (x y) in ',(collect-results #'call-with-circle-multipliers segments)
                  do (gl:vertex (* ,radius x) (* ,radius y)))))
       form))
-      
+
 (defun draw-circle (radius &optional (segments 30) (filledp nil))
   (gl:with-primitives (if filledp :triangle-fan :line-loop)
     (call-with-circle-multipliers
@@ -69,7 +69,7 @@
 
 (defun mod+ (n m p)
   (mod (+ n m) p))
-  
+
 (defun call-with-star-multipliers (fn points density)
   (let ((xs (make-array points :element-type 'single-float))
         (ys (make-array points :element-type 'single-float)))
